@@ -37,8 +37,15 @@ async fn main() {
     // Build router
     let app = app::create_router(state);
 
+    // Read address and port from environment
+    let address = std::env::var("NP_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let port: u16 = std::env::var("NP_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(3000);
+
     // Start server
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr: SocketAddr = format!("{}:{}", address, port).parse().unwrap();
     tracing::info!("Starting nix-pilot API server on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
