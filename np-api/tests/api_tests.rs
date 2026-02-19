@@ -156,8 +156,8 @@ async fn test_list_flakes_empty() {
     let response = server.get("/api/flakes").await;
 
     response.assert_status_ok();
-    let body: serde_json::Value = response.json();
-    assert!(body["flakes"].as_array().unwrap().is_empty());
+    let body: Vec<serde_json::Value> = response.json();
+    assert!(body.is_empty());
 }
 
 #[tokio::test]
@@ -167,8 +167,8 @@ async fn test_list_install_jobs_empty() {
     let response = server.get("/api/install/jobs").await;
 
     response.assert_status_ok();
-    let body: serde_json::Value = response.json();
-    assert!(body["jobs"].as_array().unwrap().is_empty());
+    let body: Vec<serde_json::Value> = response.json();
+    assert!(body.is_empty());
 }
 
 #[tokio::test]
@@ -178,8 +178,8 @@ async fn test_list_deploy_jobs_empty() {
     let response = server.get("/api/deploy/jobs").await;
 
     response.assert_status_ok();
-    let body: serde_json::Value = response.json();
-    assert!(body["jobs"].as_array().unwrap().is_empty());
+    let body: Vec<serde_json::Value> = response.json();
+    assert!(body.is_empty());
 }
 
 #[tokio::test]
