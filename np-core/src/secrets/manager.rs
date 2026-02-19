@@ -462,7 +462,7 @@ impl SecretsManager {
         let content = if config_path.exists() {
             fs::read_to_string(config_path).map_err(|e| NpError::Io(e))?
         } else {
-            include_str!("../../.sops.yaml.template").to_string()
+            include_str!("../../../templates/sops.yaml").to_string()
         };
 
         // Parse and update (simplified - in production would properly parse YAML)
