@@ -75,21 +75,7 @@
           cargoExtraArgs = "-p np-api";
         });
 
-        # Build the np-ui WASM
-        np-ui = craneLib.buildTrunkPackage (commonArgs // {
-          inherit cargoArtifacts;
-          pname = "np-ui";
-          cargoExtraArgs = "-p np-ui --features hydrate";
-          trunkIndexPath = "np-ui/index.html";
-
-          # Trunk needs wasm-bindgen-cli
-          nativeBuildInputs = commonArgs.nativeBuildInputs ++ [
-            pkgs.trunk
-            pkgs.wasm-bindgen-cli
-          ];
-        });
-
-        # Combined package with both API and UI
+        # API-only package (UI will be added later when trunk workspace build is fixed)
         nix-pilot = pkgs.runCommand "nix-pilot" {
           buildInputs = [ np-api ];
         } ''
@@ -99,8 +85,18 @@
           # Copy the API binary
           cp ${np-api}/bin/np-api $out/bin/nix-pilot-api
 
-          # Copy the UI static files
-          cp -r ${np-ui}/* $out/share/nix-pilot/static/
+          # Create placeholder static page
+          cat > $out/share/nix-pilot/static/index.html <<'HTMLEOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>Nix Pilot</title></head>
+          <body>
+            <h1>Nix Pilot API</h1>
+            <p>API is running. UI coming soon.</p>
+            <p><a href="/api/health">Health Check</a></p>
+          </body>
+          </html>
+          HTMLEOF
 
           # Create a wrapper script
           cat > $out/bin/nix-pilot <<'EOF'
@@ -114,7 +110,7 @@
       in
       {
         packages = {
-          inherit np-api np-ui nix-pilot;
+          inherit np-api nix-pilot;
           default = nix-pilot;
         };
 
