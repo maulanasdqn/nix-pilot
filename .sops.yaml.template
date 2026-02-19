@@ -1,0 +1,15 @@
+# SOPS configuration template
+# Replace the age key with your actual public key
+
+keys:
+  - &admin age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+creation_rules:
+  - path_regex: secrets/.*\.yaml$
+    key_groups:
+      - age:
+          - *admin
+  - path_regex: .*\.enc\.yaml$
+    key_groups:
+      - age:
+          - *admin
