@@ -11,10 +11,12 @@ pub mod state;
 
 pub use app::App;
 
-/// Hydration entry point for WASM
+/// Client-side rendering entry point for WASM
+/// Used when deploying as static files without SSR
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn hydrate() {
     console_error_panic_hook::set_once();
-    leptos::mount::hydrate_body(App);
+    // Use mount_to_body for CSR (no server-rendered HTML)
+    leptos::mount::mount_to_body(App);
 }
