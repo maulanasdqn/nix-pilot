@@ -45,7 +45,11 @@ pub fn MachineListPage() -> impl IntoView {
                 view! {
                     <Card>
                         <div class="text-center py-12">
-                            <div class="text-gray-400 text-5xl mb-4">"🖥️"</div>
+                            <div class="text-gray-400 text-5xl mb-4">
+                                <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
                             <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
                                 "No machines configured"
                             </h3>
