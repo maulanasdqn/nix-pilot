@@ -1,10 +1,8 @@
 [build]
 target = "index.html"
 dist = "dist"
-
 # Features to enable for the WASM build
-[build.features]
-crate_features = ["hydrate"]
+features = ["hydrate"]
 
 [watch]
 watch = ["src", "index.html", "styles"]
