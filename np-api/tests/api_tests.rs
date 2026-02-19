@@ -9,6 +9,10 @@ use tempfile::TempDir;
 
 /// Create a test server with temporary directories
 async fn create_test_server() -> (TestServer, TempDir) {
+    // Disable authentication for tests
+    // SAFETY: Tests run sequentially in the test harness
+    unsafe { std::env::set_var("NP_AUTH_ENABLED", "false"); }
+
     let temp_dir = TempDir::new().unwrap();
 
     let config = CoreConfig::with_data_dir(temp_dir.path().to_path_buf());
