@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod app;
+mod auth;
 mod error;
 mod routes;
 mod state;
@@ -35,7 +36,7 @@ async fn main() {
     }
 
     // Build router
-    let app = app::create_router(state);
+    let app = app::create_router(state.clone());
 
     // Read address and port from environment
     let address = std::env::var("NP_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string());
@@ -47,6 +48,10 @@ async fn main() {
     // Start server
     let addr: SocketAddr = format!("{}:{}", address, port).parse().unwrap();
     tracing::info!("Starting nix-pilot API server on {}", addr);
+    tracing::info!(
+        "Authentication: {}",
+        if state.auth.enabled { "enabled" } else { "disabled" }
+    );
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();

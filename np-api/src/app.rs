@@ -1,18 +1,25 @@
 use axum::{
+    middleware,
     routing::{delete, get, post, put},
     Router,
 };
 use tower_http::{
     cors::{Any, CorsLayer},
+    services::{ServeDir, ServeFile},
     trace::TraceLayer,
 };
 
+use crate::auth;
 use crate::routes;
 use crate::state::AppState;
 
 /// Build the API router
 pub fn create_router(state: AppState) -> Router {
     let api_routes = Router::new()
+        // Auth routes (public)
+        .route("/auth/login", post(auth::login))
+        .route("/auth/logout", post(auth::logout))
+        .route("/auth/check", get(auth::check_auth))
         // Health check
         .route("/health", get(routes::health_check))
         // Machines
@@ -100,8 +107,20 @@ pub fn create_router(state: AppState) -> Router {
         .route("/secrets/config/sops", post(routes::update_sops_config))
         .route("/secrets/config/sops-nix", get(routes::generate_sops_nix_config));
 
+    // Static file serving
+    let static_dir = std::env::var("NP_STATIC_DIR").unwrap_or_else(|_| "./static".to_string());
+    let index_file = format!("{}/index.html", static_dir);
+
+    let serve_dir = ServeDir::new(&static_dir)
+        .not_found_service(ServeFile::new(&index_file));
+
     Router::new()
         .nest("/api", api_routes)
+        .fallback_service(serve_dir)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::auth_middleware,
+        ))
         .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any))
         .layer(TraceLayer::new_for_http())
         .with_state(state)

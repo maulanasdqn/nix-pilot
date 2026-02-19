@@ -1,3 +1,4 @@
+use crate::auth::AuthState;
 use np_core::{
     CoreConfig, DeployExecutor, DeployManager, FlakeManager, JobManager, MachineManager,
     NixExecutor, NixosAnywhereInstaller,
@@ -13,6 +14,7 @@ pub struct AppState {
     pub flakes: Arc<FlakeManager>,
     pub jobs: Arc<JobManager>,
     pub deploys: Arc<DeployManager>,
+    pub auth: AuthState,
 }
 
 impl AppState {
@@ -35,6 +37,9 @@ impl AppState {
         let deploy_executor = DeployExecutor::new();
         let deploys = DeployManager::new(deploy_executor, config.max_concurrent_jobs);
 
+        // Create auth state
+        let auth = AuthState::from_env();
+
         Self {
             config: Arc::new(config),
             nix: Arc::new(nix),
@@ -42,6 +47,7 @@ impl AppState {
             flakes: Arc::new(flakes),
             jobs: Arc::new(jobs),
             deploys: Arc::new(deploys),
+            auth,
         }
     }
 

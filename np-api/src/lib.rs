@@ -10,6 +10,6 @@ pub mod routes;
 pub mod state;
 
 pub use app::create_router;
-pub use auth::{AuthConfig, AuthState};
+pub use auth::AuthState;
 pub use error::{ApiError, ApiResult, ErrorCode, ErrorResponse};
 pub use state::AppState;
