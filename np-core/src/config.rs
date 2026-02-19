@@ -4,6 +4,10 @@ use std::path::PathBuf;
 /// Core configuration for np-core
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoreConfig {
+    /// Base data directory
+    #[serde(default = "default_data_dir")]
+    pub data_dir: PathBuf,
+
     /// Path to the nix executable (defaults to "nix" in PATH)
     #[serde(default = "default_nix_path")]
     pub nix_path: PathBuf,
@@ -27,6 +31,12 @@ pub struct CoreConfig {
     /// Maximum concurrent jobs
     #[serde(default = "default_max_concurrent_jobs")]
     pub max_concurrent_jobs: usize,
+}
+
+fn default_data_dir() -> PathBuf {
+    directories::ProjectDirs::from("com", "nix-pilot", "nix-pilot")
+        .map(|d| d.data_dir().to_path_buf())
+        .unwrap_or_else(|| PathBuf::from(".nix-pilot"))
 }
 
 fn default_nix_path() -> PathBuf {
@@ -62,6 +72,7 @@ fn default_max_concurrent_jobs() -> usize {
 impl Default for CoreConfig {
     fn default() -> Self {
         Self {
+            data_dir: default_data_dir(),
             nix_path: default_nix_path(),
             ssh_keys_dir: default_ssh_keys_dir(),
             machines_dir: default_machines_dir(),
@@ -79,6 +90,7 @@ impl CoreConfig {
             ssh_keys_dir: data_dir.join("ssh-keys"),
             machines_dir: data_dir.join("machines"),
             flakes_dir: data_dir.join("flakes"),
+            data_dir,
             ..Default::default()
         }
     }

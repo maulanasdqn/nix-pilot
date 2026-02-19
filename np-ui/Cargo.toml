@@ -6,6 +6,11 @@ edition.workspace = true
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "np-ui-wasm"
+path = "src/bin/np-ui-wasm.rs"
+required-features = ["hydrate"]
+
 [dependencies]
 # Leptos framework
 leptos = "0.7"

@@ -4,6 +4,7 @@ mod health;
 mod install;
 mod machines;
 mod nix;
+mod secrets;
 mod services;
 mod websocket;
 
@@ -13,5 +14,6 @@ pub use health::*;
 pub use install::*;
 pub use machines::*;
 pub use nix::*;
+pub use secrets::*;
 pub use services::*;
 pub use websocket::*;

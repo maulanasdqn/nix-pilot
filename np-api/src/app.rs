@@ -85,7 +85,20 @@ pub fn create_router(state: AppState) -> Router {
         .route("/ws/nix/flake/check", get(routes::ws_flake_check))
         .route("/ws/nix/store/optimise", get(routes::ws_store_optimise))
         .route("/ws/nix/store/verify", get(routes::ws_store_verify))
-        .route("/ws/nix/store/repair", get(routes::ws_store_repair));
+        .route("/ws/nix/store/repair", get(routes::ws_store_repair))
+        // Secrets management
+        .route("/secrets/keys", get(routes::list_keys))
+        .route("/secrets/keys", post(routes::generate_key))
+        .route("/secrets/keys/import", post(routes::import_key))
+        .route("/secrets/keys/public", get(routes::get_public_keys))
+        .route("/secrets", get(routes::list_secrets))
+        .route("/secrets", post(routes::create_secret))
+        .route("/secrets/{id}", get(routes::get_secret))
+        .route("/secrets/{id}", put(routes::update_secret))
+        .route("/secrets/{id}", delete(routes::delete_secret))
+        .route("/secrets/{id}/value", get(routes::get_secret_value))
+        .route("/secrets/config/sops", post(routes::update_sops_config))
+        .route("/secrets/config/sops-nix", get(routes::generate_sops_nix_config));
 
     Router::new()
         .nest("/api", api_routes)

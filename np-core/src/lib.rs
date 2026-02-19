@@ -14,6 +14,7 @@ pub mod flake;
 pub mod machine;
 pub mod nix;
 pub mod nixos_anywhere;
+pub mod secrets;
 pub mod service;
 pub mod ssh;
 
@@ -42,5 +43,10 @@ pub use nixos_anywhere::{
 pub use service::{
     LoadState, LogEntry, LogOptions, LogOutput, LogPriority, ServiceAction, ServiceActionRequest,
     ServiceActionResult, ServiceInfo, ServiceState, ServiceStatus, ServiceSubState, SystemdManager,
+};
+pub use secrets::{
+    AgeKeyInfo, AgeKeyManager, AgeKeyPair, CreateSecretRequest, EncryptedSecret, Secret,
+    SecretFile, SecretId, SecretMetadata, SecretSummary, SecretType, SecretsConfig, SecretsManager,
+    UpdateSecretRequest,
 };
 pub use ssh::{SshAuthMethod, SshCredentials, SshSession, SshTarget};

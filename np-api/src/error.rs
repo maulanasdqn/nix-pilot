@@ -59,6 +59,11 @@ pub enum ErrorCode {
     // Deploy errors
     DeploymentFailed,
     InstallationFailed,
+
+    // Secret errors
+    SecretNotFound,
+    EncryptionFailed,
+    DecryptionFailed,
 }
 
 #[derive(Serialize)]
@@ -251,6 +256,24 @@ fn map_core_error(err: np_core::NpError) -> (StatusCode, ErrorCode, String, Opti
             StatusCode::INTERNAL_SERVER_ERROR,
             ErrorCode::InternalError,
             "An error occurred".to_string(),
+            Some(msg),
+        ),
+        NpError::SecretNotFound(id) => (
+            StatusCode::NOT_FOUND,
+            ErrorCode::SecretNotFound,
+            format!("Secret not found: {}", id),
+            None,
+        ),
+        NpError::Encryption(msg) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorCode::EncryptionFailed,
+            "Encryption failed".to_string(),
+            Some(msg),
+        ),
+        NpError::Decryption(msg) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorCode::DecryptionFailed,
+            "Decryption failed".to_string(),
             Some(msg),
         ),
     }

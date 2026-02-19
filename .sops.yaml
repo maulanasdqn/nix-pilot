@@ -1,0 +1,42 @@
+# SOPS configuration for nix-pilot
+# See: https://github.com/getsops/sops
+
+# Creation rules define how new files are encrypted
+creation_rules:
+  # Secrets for specific machines (by hostname pattern)
+  - path_regex: secrets/machines/([^/]+)/.*\.yaml$
+    key_groups:
+      - age:
+          # Add your age public keys here
+          # Example: - age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
+          []
+
+  # Secrets for specific environments
+  - path_regex: secrets/env/production/.*\.yaml$
+    key_groups:
+      - age: []
+
+  - path_regex: secrets/env/staging/.*\.yaml$
+    key_groups:
+      - age: []
+
+  - path_regex: secrets/env/development/.*\.yaml$
+    key_groups:
+      - age: []
+
+  # Default rule for all other secrets
+  - path_regex: secrets/.*\.yaml$
+    key_groups:
+      - age: []
+
+  # SSH keys and credentials
+  - path_regex: secrets/ssh/.*\.yaml$
+    key_groups:
+      - age: []
+
+# Store settings
+stores:
+  yaml:
+    indent: 2
+  json:
+    indent: 2

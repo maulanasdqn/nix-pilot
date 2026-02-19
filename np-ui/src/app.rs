@@ -7,9 +7,10 @@ use leptos_router::{
 
 use crate::components::layout::Layout;
 use crate::pages::{
-    AddFlakePage, AddMachinePage, DashboardPage, DeployWizardPage, FlakeDetailPage, FlakeListPage,
-    InstallWizardPage, MachineDetailPage, MachineListPage, NixOperationsPage, NotFoundPage,
-    ServiceDetailPage, ServiceListPage, ServiceLogsPage,
+    AddFlakePage, AddMachinePage, AddSecretPage, DashboardPage, DeployWizardPage, FlakeDetailPage,
+    FlakeListPage, InstallWizardPage, KeysPage, MachineDetailPage, MachineListPage,
+    NixOperationsPage, NotFoundPage, SecretsListPage, ServiceDetailPage, ServiceListPage,
+    ServiceLogsPage, SettingsPage,
 };
 
 /// Root application component
@@ -41,6 +42,12 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("/services/:machine_id/:service/logs") view=ServiceLogsPage/>
                     // Nix Operations
                     <Route path=path!("/nix") view=NixOperationsPage/>
+                    // Secrets Management
+                    <Route path=path!("/secrets") view=SecretsListPage/>
+                    <Route path=path!("/secrets/add") view=AddSecretPage/>
+                    <Route path=path!("/secrets/keys") view=KeysPage/>
+                    // Settings
+                    <Route path=path!("/settings") view=SettingsPage/>
                 </Routes>
             </Layout>
         </Router>

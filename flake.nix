@@ -9,9 +9,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     crane.url = "github:ipetkov/crane";
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, crane }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, crane, sops-nix }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -107,40 +111,62 @@
           };
         };
 
-        devShells.default = craneLib.devShell {
-          # Inherit inputs from commonArgs
-          inputsFrom = [ np-api ];
-
-          # Additional dev tools
-          packages = with pkgs; [
-            # Rust tools
+        devShells.default = pkgs.mkShell {
+          # Build inputs
+          buildInputs = with pkgs; [
+            # Rust toolchain with WASM target
             rustToolchain
             rust-analyzer
             cargo-watch
             cargo-edit
-            cargo-audit
+
+            # Build dependencies
+            openssl
+            pkg-config
 
             # WASM tools
             trunk
             wasm-bindgen-cli
-            wasm-pack
 
             # Formatting
             nixpkgs-fmt
-            taplo # TOML formatter
+            taplo
+
+            # SOPS/Age for secret management
+            sops
+            age
 
             # Other tools
             just
             jq
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+            pkgs.darwin.apple_sdk.frameworks.Security
+            pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+            pkgs.libiconv
           ];
 
           # Environment variables
           RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
+          OPENSSL_DIR = "${pkgs.openssl.dev}";
+          OPENSSL_LIB_DIR = "${pkgs.openssl.out}/lib";
 
           shellHook = ''
-            echo "nix-pilot development shell"
-            echo "Run 'cargo build' to build the project"
-            echo "Run 'trunk serve --open' in np-ui/ to start the UI dev server"
+            echo ""
+            echo "  Nix Pilot Development Shell"
+            echo "  ==========================="
+            echo ""
+            echo "  Commands:"
+            echo "    just dev     - Run API + UI (recommended)"
+            echo "    just api     - Run only API server"
+            echo "    just ui      - Run only UI server"
+            echo "    just build   - Build all packages"
+            echo "    just test    - Run tests"
+            echo "    just check   - Run all checks"
+            echo ""
+            echo "  URLs (when running):"
+            echo "    API:  http://localhost:3000"
+            echo "    UI:   http://localhost:8080"
+            echo ""
           '';
         };
 
@@ -173,6 +199,8 @@
           cfg = config.services.nix-pilot;
         in
         {
+          imports = [ sops-nix.nixosModules.sops ];
+
           options.services.nix-pilot = {
             enable = lib.mkEnableOption "Nix Pilot web UI";
 
@@ -217,6 +245,57 @@
               default = false;
               description = "Whether to open the firewall for nix-pilot";
             };
+
+            secrets = {
+              enable = lib.mkEnableOption "SOPS secret management for nix-pilot";
+
+              ageKeyFile = lib.mkOption {
+                type = lib.types.nullOr lib.types.path;
+                default = null;
+                description = "Path to the age key file for decrypting secrets";
+                example = "/var/lib/nix-pilot/age-key.txt";
+              };
+
+              sopsFile = lib.mkOption {
+                type = lib.types.nullOr lib.types.path;
+                default = null;
+                description = "Path to the SOPS encrypted secrets file";
+              };
+
+              apiKey = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "Name of the API key secret in the SOPS file";
+              };
+
+              extraSecrets = lib.mkOption {
+                type = lib.types.attrsOf (lib.types.submodule {
+                  options = {
+                    key = lib.mkOption {
+                      type = lib.types.str;
+                      description = "Key path in the SOPS file";
+                    };
+                    owner = lib.mkOption {
+                      type = lib.types.str;
+                      default = cfg.user;
+                      description = "Owner of the secret file";
+                    };
+                    group = lib.mkOption {
+                      type = lib.types.str;
+                      default = cfg.group;
+                      description = "Group of the secret file";
+                    };
+                    mode = lib.mkOption {
+                      type = lib.types.str;
+                      default = "0400";
+                      description = "File permissions";
+                    };
+                  };
+                });
+                default = {};
+                description = "Additional secrets to provision";
+              };
+            };
           };
 
           config = lib.mkIf cfg.enable {
@@ -229,15 +308,44 @@
 
             users.groups.${cfg.group} = {};
 
+            # SOPS configuration
+            sops = lib.mkIf cfg.secrets.enable {
+              defaultSopsFile = lib.mkIf (cfg.secrets.sopsFile != null) cfg.secrets.sopsFile;
+              age.keyFile = lib.mkIf (cfg.secrets.ageKeyFile != null) cfg.secrets.ageKeyFile;
+
+              secrets = lib.mkMerge [
+                # API key secret
+                (lib.mkIf (cfg.secrets.apiKey != null) {
+                  "nix-pilot-api-key" = {
+                    key = cfg.secrets.apiKey;
+                    owner = cfg.user;
+                    group = cfg.group;
+                    mode = "0400";
+                    restartUnits = [ "nix-pilot.service" ];
+                  };
+                })
+                # Extra secrets
+                (lib.mapAttrs (name: secret: {
+                  inherit (secret) key owner group mode;
+                  restartUnits = [ "nix-pilot.service" ];
+                }) cfg.secrets.extraSecrets)
+              ];
+            };
+
             systemd.services.nix-pilot = {
               description = "Nix Pilot Web UI";
-              after = [ "network.target" ];
+              after = [ "network.target" ] ++ lib.optionals cfg.secrets.enable [ "sops-nix.service" ];
               wantedBy = [ "multi-user.target" ];
 
               environment = {
                 NP_PORT = toString cfg.port;
                 NP_ADDRESS = cfg.address;
                 NP_DATA_DIR = cfg.dataDir;
+                NP_SECRETS_DIR = "${cfg.dataDir}/secrets";
+                NP_AGE_KEY_PATH = lib.mkIf (cfg.secrets.enable && cfg.secrets.ageKeyFile != null)
+                  cfg.secrets.ageKeyFile;
+              } // lib.optionalAttrs (cfg.secrets.enable && cfg.secrets.apiKey != null) {
+                NP_API_KEY_FILE = config.sops.secrets."nix-pilot-api-key".path;
               };
 
               serviceConfig = {

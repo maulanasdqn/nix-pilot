@@ -1,0 +1,294 @@
+use leptos::prelude::*;
+use leptos_router::components::A;
+
+use crate::components::common::Card;
+
+/// Age keys management page
+#[component]
+pub fn KeysPage() -> impl IntoView {
+    // In a real app, this would fetch from the API
+    let keys: Vec<()> = vec![];
+
+    // Modal state for generating/importing keys
+    let (show_generate_modal, set_show_generate_modal) = signal(false);
+    let (show_import_modal, set_show_import_modal) = signal(false);
+    let (key_comment, set_key_comment) = signal(String::new());
+    let (import_key, set_import_key) = signal(String::new());
+
+    view! {
+        <div class="space-y-6">
+            // Header
+            <div class="flex items-center justify-between">
+                <div>
+                    <A
+                        href="/secrets"
+                        attr:class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex items-center"
+                    >
+                        "<- Back to Secrets"
+                    </A>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">
+                        "Age Keys"
+                    </h1>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        "Manage age encryption keys for SOPS secrets"
+                    </p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button
+                        on:click=move |_| set_show_import_modal.set(true)
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-md transition-colors"
+                    >
+                        "Import Key"
+                    </button>
+                    <button
+                        on:click=move |_| set_show_generate_modal.set(true)
+                        class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
+                    >
+                        "+ Generate Key"
+                    </button>
+                </div>
+            </div>
+
+            // Info about age keys
+            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <span class="text-blue-400 text-lg">"i"</span>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">
+                            "About Age Keys"
+                        </h3>
+                        <div class="mt-2 text-sm text-blue-700 dark:text-blue-300">
+                            <p>
+                                "Age is a modern file encryption tool used by SOPS. Each machine that needs to decrypt secrets "
+                                "must have access to an age private key. Public keys are used to encrypt secrets."
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            // Keys list
+            {if keys.is_empty() {
+                view! {
+                    <Card>
+                        <div class="text-center py-12">
+                            <div class="text-gray-400 text-5xl mb-4">"K"</div>
+                            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                                "No age keys configured"
+                            </h3>
+                            <p class="text-gray-500 dark:text-gray-400 mb-4">
+                                "Generate or import an age key to start encrypting secrets."
+                            </p>
+                            <button
+                                on:click=move |_| set_show_generate_modal.set(true)
+                                class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
+                            >
+                                "Generate Your First Key"
+                            </button>
+                        </div>
+                    </Card>
+                }.into_any()
+            } else {
+                view! {
+                    <div class="space-y-4">
+                        // Key cards would be rendered here
+                    </div>
+                }.into_any()
+            }}
+
+            // Usage instructions
+            <Card title="Using Age Keys".to_string()>
+                <div class="space-y-4">
+                    <div>
+                        <h4 class="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                            "Key Storage"
+                        </h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            "Private keys are stored at "
+                            <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">"~/.config/sops/age/keys.txt"</code>
+                            " (default SOPS location)."
+                        </p>
+                    </div>
+
+                    <div>
+                        <h4 class="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                            "Deploying to NixOS"
+                        </h4>
+                        <pre class="bg-gray-100 dark:bg-gray-800 rounded p-3 text-xs overflow-x-auto font-mono">
+{r#"# Copy the private key to your server:
+scp ~/.config/sops/age/keys.txt root@server:/var/lib/sops-nix/key.txt
+
+# In your NixOS configuration:
+sops.age.keyFile = "/var/lib/sops-nix/key.txt";"#}
+                        </pre>
+                    </div>
+
+                    <div>
+                        <h4 class="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                            "Adding to .sops.yaml"
+                        </h4>
+                        <pre class="bg-gray-100 dark:bg-gray-800 rounded p-3 text-xs overflow-x-auto font-mono">
+{r#"# Add your public key to .sops.yaml:
+creation_rules:
+  - path_regex: secrets/.*\.yaml$
+    key_groups:
+      - age:
+          - age1your-public-key-here"#}
+                        </pre>
+                    </div>
+                </div>
+            </Card>
+
+            // Generate key modal
+            {move || show_generate_modal.get().then(|| view! {
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+                            "Generate New Age Key"
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    "Comment (optional)"
+                                </label>
+                                <input
+                                    type="text"
+                                    prop:value=move || key_comment.get()
+                                    on:input=move |ev| set_key_comment.set(event_target_value(&ev))
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500"
+                                    placeholder="e.g., production-server-1"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-3 mt-6">
+                            <button
+                                on:click=move |_| {
+                                    set_show_generate_modal.set(false);
+                                    set_key_comment.set(String::new());
+                                }
+                                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                                "Cancel"
+                            </button>
+                            <button
+                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm text-sm font-medium text-white"
+                            >
+                                "Generate"
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            })}
+
+            // Import key modal
+            {move || show_import_modal.get().then(|| view! {
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+                            "Import Age Key"
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    "Private Key"
+                                </label>
+                                <textarea
+                                    prop:value=move || import_key.get()
+                                    on:input=move |ev| set_import_key.set(event_target_value(&ev))
+                                    rows=3
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
+                                    placeholder="AGE-SECRET-KEY-1..."
+                                />
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    "Paste your age private key (starts with AGE-SECRET-KEY-)"
+                                </p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    "Comment (optional)"
+                                </label>
+                                <input
+                                    type="text"
+                                    prop:value=move || key_comment.get()
+                                    on:input=move |ev| set_key_comment.set(event_target_value(&ev))
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500"
+                                    placeholder="e.g., imported from backup"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-3 mt-6">
+                            <button
+                                on:click=move |_| {
+                                    set_show_import_modal.set(false);
+                                    set_import_key.set(String::new());
+                                    set_key_comment.set(String::new());
+                                }
+                                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                                "Cancel"
+                            </button>
+                            <button
+                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm text-sm font-medium text-white"
+                            >
+                                "Import"
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            })}
+        </div>
+    }
+}
+
+/// Key card component
+#[component]
+fn KeyCard(
+    #[prop(into)] public_key: String,
+    #[prop(into, optional)] comment: Option<String>,
+    #[prop(into)] is_default: bool,
+) -> impl IntoView {
+    let truncated_key = format!(
+        "{}...{}",
+        &public_key[..12],
+        &public_key[public_key.len().saturating_sub(8)..]
+    );
+
+    view! {
+        <Card>
+            <div class="flex items-start justify-between">
+                <div class="space-y-2">
+                    <div class="flex items-center space-x-2">
+                        <code class="text-sm font-mono text-gray-700 dark:text-gray-300">
+                            {truncated_key}
+                        </code>
+                        {is_default.then(|| view! {
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                "Default"
+                            </span>
+                        })}
+                    </div>
+
+                    {comment.map(|c| view! {
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{c}</p>
+                    })}
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <button
+                        class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        attr:title="Copy public key"
+                    >
+                        "C"
+                    </button>
+                </div>
+            </div>
+        </Card>
+    }
+}

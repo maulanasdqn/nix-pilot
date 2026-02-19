@@ -46,6 +46,15 @@ pub enum NpError {
     #[error("Job cancelled: {0}")]
     JobCancelled(String),
 
+    #[error("Secret not found: {0}")]
+    SecretNotFound(String),
+
+    #[error("Encryption error: {0}")]
+    Encryption(String),
+
+    #[error("Decryption error: {0}")]
+    Decryption(String),
+
     #[error("Configuration error: {0}")]
     Config(String),
 
