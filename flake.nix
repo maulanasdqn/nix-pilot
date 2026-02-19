@@ -81,7 +81,6 @@
           pname = "np-ui";
           cargoExtraArgs = "-p np-ui --features hydrate";
           trunkIndexPath = "np-ui/index.html";
-          trunkExtraBuildArgs = "--config np-ui/Trunk.toml";
 
           # Trunk needs wasm-bindgen-cli
           nativeBuildInputs = commonArgs.nativeBuildInputs ++ [
