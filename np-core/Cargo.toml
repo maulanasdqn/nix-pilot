@@ -1,0 +1,41 @@
+[package]
+name = "np-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Async runtime
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# Async utilities
+futures.workspace = true
+async-stream.workspace = true
+
+# Time handling
+chrono.workspace = true
+
+# UUID
+uuid.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Path handling
+directories = "6.0"
+
+# SSH
+russh = "0.57"
+async-trait = "0.1"
+
+# For key file handling
+home = "0.5"
+
+# Regex for flake.nix parsing
+regex.workspace = true

@@ -1,0 +1,44 @@
+[package]
+name = "np-api"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "np-api"
+path = "src/main.rs"
+
+[dependencies]
+# Internal
+np-core.workspace = true
+
+# Web framework
+axum.workspace = true
+tokio.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Async utilities
+futures.workspace = true
+
+# Time
+chrono.workspace = true
+
+# UUID for job IDs
+uuid.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# URL encoding
+urlencoding = "2.1"
+
+[dev-dependencies]
+# Testing
+axum-test = "16"
+tokio-test = "0.4"
+tempfile = "3"
