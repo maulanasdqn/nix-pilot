@@ -11,25 +11,14 @@ use tempfile::TempDir;
 async fn create_test_server() -> (TestServer, TempDir) {
     let temp_dir = TempDir::new().unwrap();
 
-    let config = CoreConfig {
-        nix_path: std::path::PathBuf::from("nix"),
-        machines_dir: temp_dir.path().join("machines"),
-        flakes_dir: temp_dir.path().join("flakes"),
-        jobs_dir: temp_dir.path().join("jobs"),
-        command_timeout_secs: 60,
-        max_concurrent_jobs: 2,
-    };
-
-    // Create directories
-    std::fs::create_dir_all(&config.machines_dir).unwrap();
-    std::fs::create_dir_all(&config.flakes_dir).unwrap();
-    std::fs::create_dir_all(&config.jobs_dir).unwrap();
+    let config = CoreConfig::with_data_dir(temp_dir.path().to_path_buf());
+    config.ensure_dirs().unwrap();
 
     let state = AppState::new(config);
     state.init().await.unwrap();
 
     let app = create_router(state);
-    let server = TestServer::new(app).unwrap();
+    let server = TestServer::new(app.into_make_service()).unwrap();
 
     (server, temp_dir)
 }
