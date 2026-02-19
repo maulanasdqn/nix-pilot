@@ -78,8 +78,10 @@
         # Build the np-ui WASM
         np-ui = craneLib.buildTrunkPackage (commonArgs // {
           inherit cargoArtifacts;
-          cargoExtraArgs = "-p np-ui";
+          pname = "np-ui";
+          cargoExtraArgs = "-p np-ui --features hydrate";
           trunkIndexPath = "np-ui/index.html";
+          trunkExtraBuildArgs = "--config np-ui/Trunk.toml";
 
           # Trunk needs wasm-bindgen-cli
           nativeBuildInputs = commonArgs.nativeBuildInputs ++ [
