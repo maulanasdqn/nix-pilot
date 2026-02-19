@@ -75,45 +75,9 @@
           cargoExtraArgs = "-p np-api";
         });
 
-        # Build the WASM UI with trunk
-        np-ui = pkgs.stdenv.mkDerivation {
-          pname = "np-ui";
-          version = "0.1.0";
-          src = src;
-
-          nativeBuildInputs = with pkgs; [
-            rustToolchain
-            trunk
-            wasm-bindgen-cli
-            binaryen
-            pkg-config
-          ];
-
-          buildInputs = with pkgs; [
-            openssl
-          ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
-            pkgs.darwin.apple_sdk.frameworks.Security
-            pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-          ];
-
-          buildPhase = ''
-            export HOME=$(mktemp -d)
-            export CARGO_HOME=$HOME/.cargo
-            mkdir -p $CARGO_HOME
-
-            cd np-ui
-            trunk build --release
-          '';
-
-          installPhase = ''
-            mkdir -p $out
-            cp -r dist/* $out/
-          '';
-        };
-
-        # Combined package with API and UI
+        # API package with placeholder UI (WASM build requires separate setup)
         nix-pilot = pkgs.runCommand "nix-pilot" {
-          buildInputs = [ np-api np-ui ];
+          buildInputs = [ np-api ];
         } ''
           mkdir -p $out/bin
           mkdir -p $out/share/nix-pilot/static
@@ -121,8 +85,76 @@
           # Copy the API binary
           cp ${np-api}/bin/np-api $out/bin/nix-pilot-api
 
-          # Copy the UI assets
-          cp -r ${np-ui}/* $out/share/nix-pilot/static/
+          # Create placeholder index.html with login page
+          cat > $out/share/nix-pilot/static/index.html << 'HTMLEOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nix Pilot</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; color: #fff; }
+    .container { text-align: center; padding: 2rem; max-width: 400px; width: 100%; }
+    .logo { font-size: 3rem; margin-bottom: 0.5rem; }
+    h1 { font-size: 1.8rem; margin-bottom: 2rem; font-weight: 300; }
+    .card { background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 12px; backdrop-filter: blur(10px); margin-bottom: 1rem; }
+    .form-group { margin-bottom: 1rem; text-align: left; }
+    label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; opacity: 0.8; }
+    input { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; background: rgba(0,0,0,0.2); color: #fff; font-size: 1rem; }
+    input:focus { outline: none; border-color: #4f8cff; }
+    button { width: 100%; padding: 0.75rem 1rem; border: none; border-radius: 8px; background: #4f8cff; color: #fff; font-size: 1rem; cursor: pointer; margin-top: 0.5rem; }
+    button:hover { background: #3d7be8; }
+    button:disabled { background: #666; cursor: not-allowed; }
+    .error { color: #ff6b6b; margin-top: 1rem; font-size: 0.9rem; min-height: 1.2em; }
+    .hidden { display: none; }
+    .status { color: #4ade80; }
+    .links { margin-top: 1rem; }
+    .links a { color: #4f8cff; margin: 0 0.5rem; }
+    .logout-btn { background: rgba(255,255,255,0.15); margin-top: 1rem; }
+    .logout-btn:hover { background: rgba(255,255,255,0.25); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">🚀</div>
+    <h1>Nix Pilot</h1>
+    <div id="login" class="card">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="username" placeholder="admin">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="Password">
+      </div>
+      <button onclick="login()">Login</button>
+      <div id="error" class="error"></div>
+    </div>
+    <div id="dashboard" class="card hidden">
+      <h3>Status: <span class="status">Online</span></h3>
+      <p style="margin-top:0.5rem;opacity:0.7">API is running</p>
+      <div class="links">
+        <a href="/api/health">Health</a>
+        <a href="/api/machines">Machines</a>
+        <a href="/api/flakes">Flakes</a>
+      </div>
+      <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+  </div>
+  <script>
+    const T='np_token';
+    async function check(){const t=localStorage.getItem(T);if(!t)return false;try{const r=await fetch('/api/auth/check',{headers:{'Authorization':'Bearer '+t}});const d=await r.json();return d.authenticated||!d.auth_enabled;}catch{return false;}}
+    async function login(){const b=document.getElementById('username'),p=document.getElementById('password'),e=document.getElementById('error');e.textContent=''';try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:b.value,password:p.value})});const d=await r.json();if(d.success&&d.token){localStorage.setItem(T,d.token);show(true);}else if(d.success){show(true);}else{e.textContent=d.message||'Login failed';}}catch{e.textContent='Connection error';}}
+    async function logout(){const t=localStorage.getItem(T);if(t)await fetch('/api/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+t}});localStorage.removeItem(T);show(false);}
+    function show(ok){document.getElementById('login').classList.toggle('hidden',ok);document.getElementById('dashboard').classList.toggle('hidden',!ok);}
+    document.getElementById('password').onkeyup=e=>{if(e.key==='Enter')login();};
+    check().then(show);
+  </script>
+</body>
+</html>
+HTMLEOF
 
           # Create a wrapper script
           cat > $out/bin/nix-pilot <<'EOF'
