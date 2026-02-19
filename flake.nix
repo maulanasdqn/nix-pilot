@@ -214,7 +214,7 @@
       const btn = document.getElementById('loginBtn');
       const error = document.getElementById('error');
       btn.disabled = true;
-      error.textContent = '';
+      error.textContent = ''';
 
       try {
         const res = await fetch('/api/auth/login', {
