@@ -30,9 +30,17 @@
 
         craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
+        # Source with templates directory included (cleanCargoSource filters out non-Rust files)
+        src = pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter = path: type:
+            (craneLib.filterCargoSources path type) ||
+            (builtins.match ".*templates.*" path != null);
+        };
+
         # Common arguments for all builds
         commonArgs = {
-          src = craneLib.cleanCargoSource ./.;
+          inherit src;
           strictDeps = true;
 
           buildInputs = with pkgs; [
