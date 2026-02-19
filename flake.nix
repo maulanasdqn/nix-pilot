@@ -146,10 +146,49 @@
           '';
 
           installPhase = ''
-            mkdir -p $out/pkg
+            mkdir -p $out/pkg $out/styles
+
+            # Copy WASM output
             cp -r out/pkg/* $out/pkg/ 2>/dev/null || true
-            cp index.html $out/
-            cp -r styles $out/ 2>/dev/null || mkdir -p $out/styles
+
+            # Copy styles
+            cp -r styles/* $out/styles/ 2>/dev/null || true
+
+            # Generate proper index.html that loads wasm-bindgen output
+            cat > $out/index.html << 'HTMLEOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nix Pilot - NixOS Management</title>
+  <link rel="stylesheet" href="/styles/main.css">
+  <style>
+    body { margin: 0; padding: 0; }
+    .loading { display: flex; align-items: center; justify-content: center; height: 100vh; background: #1a1a2e; color: #fff; font-family: system-ui, sans-serif; }
+    .loading-text { font-size: 1.2rem; opacity: 0.8; }
+  </style>
+</head>
+<body>
+  <div id="app" class="loading"><span class="loading-text">Loading Nix Pilot...</span></div>
+  <script type="module">
+    import init, { hydrate } from '/pkg/np_ui.js';
+    async function run() {
+      try {
+        await init('/pkg/np_ui_bg.wasm');
+        document.getElementById('app').innerHTML = "";
+        document.getElementById('app').className = "";
+        hydrate();
+      } catch (e) {
+        console.error('Failed to load WASM:', e);
+        document.getElementById('app').innerHTML = '<div style="padding:2rem;color:#ff6b6b;">Failed to load application. Check console for details.</div>';
+      }
+    }
+    run();
+  </script>
+</body>
+</html>
+HTMLEOF
           '';
         };
 
@@ -222,12 +261,12 @@
     </div>
   </div>
   <script>
-    const T='np_token';
-    async function check(){const t=localStorage.getItem(T);if(!t)return false;try{const r=await fetch('/api/auth/check',{headers:{'Authorization':'Bearer '+t}});const d=await r.json();return d.authenticated||!d.auth_enabled;}catch{return false;}}
-    async function login(){const b=document.getElementById('username'),p=document.getElementById('password'),e=document.getElementById('error');e.textContent=''';try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:b.value,password:p.value})});const d=await r.json();if(d.success&&d.token){localStorage.setItem(T,d.token);show(true);}else if(d.success){show(true);}else{e.textContent=d.message||'Login failed';}}catch{e.textContent='Connection error';}}
-    async function logout(){const t=localStorage.getItem(T);if(t)await fetch('/api/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+t}});localStorage.removeItem(T);show(false);}
-    function show(ok){document.getElementById('login').classList.toggle('hidden',ok);document.getElementById('dashboard').classList.toggle('hidden',!ok);}
-    document.getElementById('password').onkeyup=e=>{if(e.key==='Enter')login();};
+    const T="np_token";
+    async function check(){const t=localStorage.getItem(T);if(!t)return false;try{const r=await fetch("/api/auth/check",{headers:{"Authorization":"Bearer "+t}});const d=await r.json();return d.authenticated||!d.auth_enabled;}catch{return false;}}
+    async function login(){const b=document.getElementById("username"),p=document.getElementById("password"),e=document.getElementById("error");e.textContent="";try{const r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:b.value,password:p.value})});const d=await r.json();if(d.success&&d.token){localStorage.setItem(T,d.token);show(true);}else if(d.success){show(true);}else{e.textContent=d.message||"Login failed";}}catch{e.textContent="Connection error";}}
+    async function logout(){const t=localStorage.getItem(T);if(t)await fetch("/api/auth/logout",{method:"POST",headers:{"Authorization":"Bearer "+t}});localStorage.removeItem(T);show(false);}
+    function show(ok){document.getElementById("login").classList.toggle("hidden",ok);document.getElementById("dashboard").classList.toggle("hidden",!ok);}
+    document.getElementById("password").onkeyup=e=>{if(e.key==="Enter")login();};
     check().then(show);
   </script>
 </body>
