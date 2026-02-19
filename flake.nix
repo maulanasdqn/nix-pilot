@@ -75,9 +75,45 @@
           cargoExtraArgs = "-p np-api";
         });
 
-        # API-only package (UI will be added later when trunk workspace build is fixed)
+        # Build the WASM UI with trunk
+        np-ui = pkgs.stdenv.mkDerivation {
+          pname = "np-ui";
+          version = "0.1.0";
+          src = src;
+
+          nativeBuildInputs = with pkgs; [
+            rustToolchain
+            trunk
+            wasm-bindgen-cli
+            binaryen
+            pkg-config
+          ];
+
+          buildInputs = with pkgs; [
+            openssl
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+            pkgs.darwin.apple_sdk.frameworks.Security
+            pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+          ];
+
+          buildPhase = ''
+            export HOME=$(mktemp -d)
+            export CARGO_HOME=$HOME/.cargo
+            mkdir -p $CARGO_HOME
+
+            cd np-ui
+            trunk build --release
+          '';
+
+          installPhase = ''
+            mkdir -p $out
+            cp -r dist/* $out/
+          '';
+        };
+
+        # Combined package with API and UI
         nix-pilot = pkgs.runCommand "nix-pilot" {
-          buildInputs = [ np-api ];
+          buildInputs = [ np-api np-ui ];
         } ''
           mkdir -p $out/bin
           mkdir -p $out/share/nix-pilot/static
@@ -85,194 +121,8 @@
           # Copy the API binary
           cp ${np-api}/bin/np-api $out/bin/nix-pilot-api
 
-          # Create login page
-          cat > $out/share/nix-pilot/static/index.html <<'HTMLEOF'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nix Pilot</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-    }
-    .container { text-align: center; padding: 2rem; }
-    .logo { font-size: 3rem; margin-bottom: 0.5rem; }
-    h1 { font-size: 2rem; margin-bottom: 2rem; font-weight: 300; }
-    .login-form {
-      background: rgba(255,255,255,0.1);
-      padding: 2rem;
-      border-radius: 12px;
-      backdrop-filter: blur(10px);
-      max-width: 400px;
-      margin: 0 auto;
-    }
-    .form-group { margin-bottom: 1rem; text-align: left; }
-    label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; opacity: 0.8; }
-    input {
-      width: 100%;
-      padding: 0.75rem 1rem;
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 8px;
-      background: rgba(0,0,0,0.2);
-      color: #fff;
-      font-size: 1rem;
-    }
-    input:focus { outline: none; border-color: #4f8cff; }
-    button {
-      width: 100%;
-      padding: 0.75rem 1rem;
-      border: none;
-      border-radius: 8px;
-      background: #4f8cff;
-      color: #fff;
-      font-size: 1rem;
-      cursor: pointer;
-      margin-top: 1rem;
-      transition: background 0.2s;
-    }
-    button:hover { background: #3d7be8; }
-    button:disabled { background: #666; cursor: not-allowed; }
-    .error { color: #ff6b6b; margin-top: 1rem; font-size: 0.9rem; }
-    .dashboard { display: none; }
-    .dashboard.active { display: block; }
-    .login-form.hidden { display: none; }
-    .card {
-      background: rgba(255,255,255,0.1);
-      padding: 1.5rem;
-      border-radius: 12px;
-      margin: 1rem 0;
-    }
-    .status { color: #4ade80; }
-    .logout-btn {
-      background: rgba(255,255,255,0.1);
-      margin-top: 2rem;
-    }
-    .logout-btn:hover { background: rgba(255,255,255,0.2); }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="logo">🚀</div>
-    <h1>Nix Pilot</h1>
-
-    <div id="loginForm" class="login-form">
-      <div class="form-group">
-        <label for="username">Username</label>
-        <input type="text" id="username" placeholder="admin" autocomplete="username">
-      </div>
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" placeholder="Password" autocomplete="current-password">
-      </div>
-      <button id="loginBtn" onclick="login()">Login</button>
-      <div id="error" class="error"></div>
-    </div>
-
-    <div id="dashboard" class="dashboard">
-      <div class="card">
-        <h3>Status: <span class="status">Online</span></h3>
-        <p style="margin-top: 0.5rem; opacity: 0.7;">API is running</p>
-      </div>
-      <div class="card">
-        <h3>Quick Links</h3>
-        <p style="margin-top: 0.5rem;">
-          <a href="/api/health" style="color: #4f8cff;">Health Check</a> |
-          <a href="/api/machines" style="color: #4f8cff;">Machines</a> |
-          <a href="/api/flakes" style="color: #4f8cff;">Flakes</a>
-        </p>
-      </div>
-      <p style="margin-top: 1rem; opacity: 0.6;">Full UI coming soon...</p>
-      <button class="logout-btn" onclick="logout()">Logout</button>
-    </div>
-  </div>
-
-  <script>
-    const TOKEN_KEY = 'np_token';
-
-    async function checkAuth() {
-      const token = localStorage.getItem(TOKEN_KEY);
-      if (!token) return false;
-      try {
-        const res = await fetch('/api/auth/check', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        const data = await res.json();
-        return data.authenticated || !data.auth_enabled;
-      } catch { return false; }
-    }
-
-    async function login() {
-      const btn = document.getElementById('loginBtn');
-      const error = document.getElementById('error');
-      btn.disabled = true;
-      error.textContent = ''';
-
-      try {
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: document.getElementById('username').value,
-            password: document.getElementById('password').value
-          })
-        });
-        const data = await res.json();
-        if (data.success && data.token) {
-          localStorage.setItem(TOKEN_KEY, data.token);
-          showDashboard();
-        } else if (data.success && !data.token) {
-          showDashboard(); // Auth disabled
-        } else {
-          error.textContent = data.message || 'Login failed';
-        }
-      } catch (e) {
-        error.textContent = 'Connection error';
-      }
-      btn.disabled = false;
-    }
-
-    async function logout() {
-      const token = localStorage.getItem(TOKEN_KEY);
-      if (token) {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-      }
-      localStorage.removeItem(TOKEN_KEY);
-      showLogin();
-    }
-
-    function showDashboard() {
-      document.getElementById('loginForm').classList.add('hidden');
-      document.getElementById('dashboard').classList.add('active');
-    }
-
-    function showLogin() {
-      document.getElementById('loginForm').classList.remove('hidden');
-      document.getElementById('dashboard').classList.remove('active');
-    }
-
-    // Check auth on load
-    checkAuth().then(ok => ok ? showDashboard() : showLogin());
-
-    // Enter key to login
-    document.getElementById('password').addEventListener('keyup', e => {
-      if (e.key === 'Enter') login();
-    });
-  </script>
-</body>
-</html>
-HTMLEOF
+          # Copy the UI assets
+          cp -r ${np-ui}/* $out/share/nix-pilot/static/
 
           # Create a wrapper script
           cat > $out/bin/nix-pilot <<'EOF'
