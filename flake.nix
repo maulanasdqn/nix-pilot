@@ -75,7 +75,85 @@
           cargoExtraArgs = "-p np-api";
         });
 
-        # API package with placeholder UI (WASM build requires separate setup)
+        # WASM toolchain for UI build
+        wasmToolchain = pkgs.rust-bin.stable.latest.default.override {
+          targets = [ "wasm32-unknown-unknown" ];
+        };
+
+        craneLibWasm = (crane.mkLib pkgs).overrideToolchain wasmToolchain;
+
+        # WASM-specific source (only np-ui)
+        wasmSrc = pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter = path: type:
+            let
+              baseName = builtins.baseNameOf path;
+              relPath = pkgs.lib.removePrefix (toString ./.) (toString path);
+              isNpUi = builtins.match ".*/np-ui/.*" path != null || baseName == "np-ui";
+              isNpCore = builtins.match ".*/np-core/.*" path != null || baseName == "np-core";
+              isWorkspaceFile = baseName == "Cargo.toml" || baseName == "Cargo.lock";
+              isWebAsset = builtins.match ".*\\.(html|css|js)$" path != null;
+            in
+            (craneLibWasm.filterCargoSources path type) || isWebAsset;
+        };
+
+        # Build WASM dependencies
+        wasmArgs = {
+          src = wasmSrc;
+          strictDeps = true;
+          doCheck = false;
+          CARGO_BUILD_TARGET = "wasm32-unknown-unknown";
+          cargoExtraArgs = "-p np-ui --features hydrate";
+        };
+
+        wasmArtifacts = craneLibWasm.buildDepsOnly wasmArgs;
+
+        # Build the WASM binary
+        np-ui-wasm = craneLibWasm.buildPackage (wasmArgs // {
+          cargoArtifacts = wasmArtifacts;
+        });
+
+        # Process WASM with wasm-bindgen
+        np-ui = pkgs.stdenv.mkDerivation {
+          pname = "np-ui";
+          version = "0.1.0";
+          src = ./np-ui;
+
+          nativeBuildInputs = with pkgs; [
+            wasm-bindgen-cli
+            binaryen
+          ];
+
+          buildPhase = ''
+            # Find the wasm file
+            WASM_FILE=$(find ${np-ui-wasm}/lib -name "*.wasm" | head -1)
+            if [ -z "$WASM_FILE" ]; then
+              echo "No WASM file found, checking bin directory..."
+              WASM_FILE=$(find ${np-ui-wasm}/bin -name "*.wasm" 2>/dev/null | head -1)
+            fi
+            if [ -z "$WASM_FILE" ]; then
+              echo "Searching entire output..."
+              WASM_FILE=$(find ${np-ui-wasm} -name "*.wasm" | head -1)
+            fi
+            echo "Found WASM: $WASM_FILE"
+
+            mkdir -p out/pkg
+            wasm-bindgen --target web --out-dir out/pkg "$WASM_FILE" || true
+            wasm-opt -Oz -o out/pkg/np_ui_bg_opt.wasm out/pkg/np_ui_bg.wasm 2>/dev/null || true
+            if [ -f out/pkg/np_ui_bg_opt.wasm ]; then
+              mv out/pkg/np_ui_bg_opt.wasm out/pkg/np_ui_bg.wasm
+            fi
+          '';
+
+          installPhase = ''
+            mkdir -p $out/pkg
+            cp -r out/pkg/* $out/pkg/ 2>/dev/null || true
+            cp index.html $out/
+            cp -r styles $out/ 2>/dev/null || mkdir -p $out/styles
+          '';
+        };
+
+        # Combined package
         nix-pilot = pkgs.runCommand "nix-pilot" {
           buildInputs = [ np-api ];
         } ''
@@ -85,8 +163,12 @@
           # Copy the API binary
           cp ${np-api}/bin/np-api $out/bin/nix-pilot-api
 
-          # Create placeholder index.html with login page
-          cat > $out/share/nix-pilot/static/index.html << 'HTMLEOF'
+          # Copy UI assets if available, otherwise use fallback
+          if [ -d "${np-ui}/pkg" ] && [ -n "$(ls -A ${np-ui}/pkg 2>/dev/null)" ]; then
+            cp -r ${np-ui}/* $out/share/nix-pilot/static/
+          else
+            # Fallback: simple login page
+            cat > $out/share/nix-pilot/static/index.html << 'HTMLEOF'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -97,7 +179,6 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: system-ui, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; color: #fff; }
     .container { text-align: center; padding: 2rem; max-width: 400px; width: 100%; }
-    .logo { font-size: 3rem; margin-bottom: 0.5rem; }
     h1 { font-size: 1.8rem; margin-bottom: 2rem; font-weight: 300; }
     .card { background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 12px; backdrop-filter: blur(10px); margin-bottom: 1rem; }
     .form-group { margin-bottom: 1rem; text-align: left; }
@@ -106,19 +187,16 @@
     input:focus { outline: none; border-color: #4f8cff; }
     button { width: 100%; padding: 0.75rem 1rem; border: none; border-radius: 8px; background: #4f8cff; color: #fff; font-size: 1rem; cursor: pointer; margin-top: 0.5rem; }
     button:hover { background: #3d7be8; }
-    button:disabled { background: #666; cursor: not-allowed; }
     .error { color: #ff6b6b; margin-top: 1rem; font-size: 0.9rem; min-height: 1.2em; }
     .hidden { display: none; }
     .status { color: #4ade80; }
     .links { margin-top: 1rem; }
     .links a { color: #4f8cff; margin: 0 0.5rem; }
     .logout-btn { background: rgba(255,255,255,0.15); margin-top: 1rem; }
-    .logout-btn:hover { background: rgba(255,255,255,0.25); }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="logo">🚀</div>
     <h1>Nix Pilot</h1>
     <div id="login" class="card">
       <div class="form-group">
@@ -155,6 +233,7 @@
 </body>
 </html>
 HTMLEOF
+          fi
 
           # Create a wrapper script
           cat > $out/bin/nix-pilot <<'EOF'
@@ -168,7 +247,7 @@ EOF
       in
       {
         packages = {
-          inherit np-api nix-pilot;
+          inherit np-api np-ui np-ui-wasm nix-pilot;
           default = nix-pilot;
         };
 
