@@ -30,12 +30,22 @@
 
         craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
-        # Source with templates directory included (cleanCargoSource filters out non-Rust files)
+        # Source filter including Rust sources, templates, and frontend assets
         src = pkgs.lib.cleanSourceWith {
           src = ./.;
           filter = path: type:
+            let
+              baseName = builtins.baseNameOf path;
+              isWebAsset = builtins.match ".*\\.(html|css|js|ico|svg|png|jpg|wasm)$" path != null;
+              isTrunkConfig = baseName == "Trunk.toml";
+              isStylesDir = builtins.match ".*styles.*" path != null;
+              isTemplatesDir = builtins.match ".*templates.*" path != null;
+            in
             (craneLib.filterCargoSources path type) ||
-            (builtins.match ".*templates.*" path != null);
+            isWebAsset ||
+            isTrunkConfig ||
+            isStylesDir ||
+            isTemplatesDir;
         };
 
         # Common arguments for all builds
