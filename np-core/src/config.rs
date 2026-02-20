@@ -40,6 +40,16 @@ fn default_data_dir() -> PathBuf {
 }
 
 fn default_nix_path() -> PathBuf {
+    // Check environment variable first
+    if let Ok(path) = std::env::var("NP_NIX_PATH") {
+        return PathBuf::from(path);
+    }
+    // Try common NixOS locations
+    let nixos_path = PathBuf::from("/run/current-system/sw/bin/nix");
+    if nixos_path.exists() {
+        return nixos_path;
+    }
+    // Fallback to PATH lookup
     PathBuf::from("nix")
 }
 

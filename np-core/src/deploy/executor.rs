@@ -14,12 +14,21 @@ use super::types::{DeployPhase, DeployRequest, GenerationInfo, RollbackRequest};
 pub struct DeployExecutor {
     /// Default timeout for deployment (in seconds)
     timeout_secs: u64,
+    /// Path to nixos-rebuild binary
+    nixos_rebuild_path: String,
 }
 
 impl DeployExecutor {
     pub fn new() -> Self {
+        // Try NixOS default path first
+        let nixos_rebuild_path = if std::path::Path::new("/run/current-system/sw/bin/nixos-rebuild").exists() {
+            "/run/current-system/sw/bin/nixos-rebuild".to_string()
+        } else {
+            "nixos-rebuild".to_string()
+        };
         Self {
             timeout_secs: 3600, // 1 hour default
+            nixos_rebuild_path,
         }
     }
 
@@ -93,7 +102,7 @@ impl DeployExecutor {
         // Send initial phase
         let _ = phase_tx.send(DeployPhase::Evaluating).await;
 
-        let mut child = Command::new("nixos-rebuild")
+        let mut child = Command::new(&self.nixos_rebuild_path)
             .args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

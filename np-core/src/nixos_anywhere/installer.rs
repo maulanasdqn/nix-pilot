@@ -14,14 +14,29 @@ use super::types::{DiskoMode, InstallPhase, InstallRequest};
 pub struct NixosAnywhereInstaller {
     /// Path to nixos-anywhere executable
     nixos_anywhere_path: PathBuf,
+    /// Path to nix executable
+    nix_path: PathBuf,
     /// Default timeout for installation (in seconds)
     timeout_secs: u64,
 }
 
 impl NixosAnywhereInstaller {
     pub fn new() -> Self {
+        // Try common locations for nixos-anywhere
+        let nixos_anywhere_path = if PathBuf::from("/run/current-system/sw/bin/nixos-anywhere").exists() {
+            PathBuf::from("/run/current-system/sw/bin/nixos-anywhere")
+        } else {
+            PathBuf::from("nixos-anywhere")
+        };
+        // Try common locations for nix
+        let nix_path = if PathBuf::from("/run/current-system/sw/bin/nix").exists() {
+            PathBuf::from("/run/current-system/sw/bin/nix")
+        } else {
+            PathBuf::from("nix")
+        };
         Self {
-            nixos_anywhere_path: PathBuf::from("nixos-anywhere"),
+            nixos_anywhere_path,
+            nix_path,
             timeout_secs: 3600, // 1 hour default
         }
     }
@@ -238,7 +253,7 @@ impl NixosAnywhereInstaller {
             .send(OutputLine::stdout(format!("$ nix run {}", vm_ref)))
             .await;
 
-        let mut child = Command::new("nix")
+        let mut child = Command::new(&self.nix_path)
             .args(["run", &vm_ref])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
