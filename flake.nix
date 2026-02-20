@@ -390,8 +390,7 @@ EOF
           cfg = config.services.nix-pilot;
         in
         {
-          imports = [ sops-nix.nixosModules.sops ];
-
+          # Note: Don't import sops-nix here - let the consumer import it to avoid conflicts
           options.services.nix-pilot = {
             enable = lib.mkEnableOption "Nix Pilot web UI";
 
