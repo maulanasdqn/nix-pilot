@@ -1,18 +1,136 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::JsCast;
 
 use crate::components::common::Card;
 use crate::components::icons::*;
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct DashboardStats {
+    #[serde(default)]
+    machine_count: usize,
+    #[serde(default)]
+    online_count: usize,
+    #[serde(default)]
+    flake_count: usize,
+    #[serde(default)]
+    recent_deploys: usize,
+    #[serde(default)]
+    failed_services: usize,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct MachineListResponse {
+    #[serde(default)]
+    machines: Vec<MachineBasic>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct MachineBasic {
+    #[serde(default)]
+    id: String,
+    #[serde(default)]
+    status: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct FlakeListResponse {
+    #[serde(default)]
+    flakes: Vec<FlakeBasic>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct FlakeBasic {
+    #[serde(default)]
+    id: String,
+}
+
+async fn fetch_dashboard_stats() -> Result<DashboardStats, String> {
+    let window = web_sys::window().ok_or("No window")?;
+    let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
+    let token = storage.get_item("np_token").map_err(|_| "No token")?;
+
+    let mut stats = DashboardStats::default();
+
+    // Fetch machines
+    {
+        let opts = web_sys::RequestInit::new();
+        opts.set_method("GET");
+
+        let request = web_sys::Request::new_with_str_and_init("/api/machines", &opts)
+            .map_err(|_| "Failed to create request")?;
+
+        if let Some(ref t) = token {
+            request.headers().set("Authorization", &format!("Bearer {}", t)).ok();
+        }
+
+        let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
+            .await
+            .map_err(|_| "Fetch failed")?;
+
+        let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
+
+        if resp.ok() {
+            if let Ok(json) = wasm_bindgen_futures::JsFuture::from(resp.json().unwrap()).await {
+                if let Ok(data) = serde_wasm_bindgen::from_value::<MachineListResponse>(json) {
+                    stats.machine_count = data.machines.len();
+                    stats.online_count = data.machines.iter()
+                        .filter(|m| m.status == "online" || m.status == "connected")
+                        .count();
+                }
+            }
+        }
+    }
+
+    // Fetch flakes
+    {
+        let opts = web_sys::RequestInit::new();
+        opts.set_method("GET");
+
+        let request = web_sys::Request::new_with_str_and_init("/api/flakes", &opts)
+            .map_err(|_| "Failed to create request")?;
+
+        if let Some(ref t) = token {
+            request.headers().set("Authorization", &format!("Bearer {}", t)).ok();
+        }
+
+        let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
+            .await
+            .map_err(|_| "Fetch failed")?;
+
+        let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
+
+        if resp.ok() {
+            if let Ok(json) = wasm_bindgen_futures::JsFuture::from(resp.json().unwrap()).await {
+                if let Ok(data) = serde_wasm_bindgen::from_value::<FlakeListResponse>(json) {
+                    stats.flake_count = data.flakes.len();
+                }
+            }
+        }
+    }
+
+    Ok(stats)
+}
+
 /// Dashboard page - main overview
 #[component]
 pub fn DashboardPage() -> impl IntoView {
-    // Mock data - in real app, this would come from API
-    let machine_count = 0;
-    let online_count = 0;
-    let flake_count = 0;
-    let recent_deploys = 0;
-    let failed_services = 0;
+    let (loading, set_loading) = signal(true);
+    let (stats, set_stats) = signal(DashboardStats::default());
+
+    // Fetch stats on mount
+    leptos::task::spawn_local(async move {
+        match fetch_dashboard_stats().await {
+            Ok(s) => {
+                set_stats.set(s);
+                set_loading.set(false);
+            }
+            Err(_) => {
+                set_loading.set(false);
+            }
+        }
+    });
 
     view! {
         <div class="space-y-6">
@@ -35,40 +153,56 @@ pub fn DashboardPage() -> impl IntoView {
             </div>
 
             // Stats Grid
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard
-                    title="Machines"
-                    value=machine_count
-                    subtitle=format!("{} online", online_count)
-                    color="indigo"
-                    href="/machines"
-                    icon=view! { <IconServer size=IconSize::Lg /> }
-                />
-                <StatCard
-                    title="Flakes"
-                    value=flake_count
-                    subtitle="registered"
-                    color="purple"
-                    href="/flakes"
-                    icon=view! { <IconFlake size=IconSize::Lg /> }
-                />
-                <StatCard
-                    title="Deployments"
-                    value=recent_deploys
-                    subtitle="this week"
-                    color="green"
-                    href="/deploy"
-                    icon=view! { <IconDeploy size=IconSize::Lg /> }
-                />
-                <StatCard
-                    title="Failed Services"
-                    value=failed_services
-                    subtitle="across all machines"
-                    color="gray"
-                    href="/machines"
-                    icon=view! { <IconWarning size=IconSize::Lg /> }
-                />
-            </div>
+            <Show when=move || loading.get()>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 animate-pulse h-24"></div>
+                    <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 animate-pulse h-24"></div>
+                    <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 animate-pulse h-24"></div>
+                    <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 animate-pulse h-24"></div>
+                </div>
+            </Show>
+
+            <Show when=move || !loading.get()>
+                {move || {
+                    let s = stats.get();
+                    view! {
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <StatCard
+                                title="Machines"
+                                value=s.machine_count
+                                subtitle=format!("{} online", s.online_count)
+                                color="indigo"
+                                href="/machines"
+                                icon=view! { <IconServer size=IconSize::Lg /> }
+                            />
+                            <StatCard
+                                title="Flakes"
+                                value=s.flake_count
+                                subtitle="registered"
+                                color="purple"
+                                href="/flakes"
+                                icon=view! { <IconFlake size=IconSize::Lg /> }
+                            />
+                            <StatCard
+                                title="Deployments"
+                                value=s.recent_deploys
+                                subtitle="this week"
+                                color="green"
+                                href="/deploy"
+                                icon=view! { <IconDeploy size=IconSize::Lg /> }
+                            />
+                            <StatCard
+                                title="Failed Services"
+                                value=s.failed_services
+                                subtitle="across all machines"
+                                color="gray"
+                                href="/machines"
+                                icon=view! { <IconWarning size=IconSize::Lg /> }
+                            />
+                        </div>
+                    }
+                }}
+            </Show>
 
             // Main Content Grid
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
