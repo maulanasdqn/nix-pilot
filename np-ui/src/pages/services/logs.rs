@@ -1,9 +1,54 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsCast;
 
 use crate::components::common::Card;
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct LogsResponse {
+    #[serde(default)]
+    logs: Vec<String>,
+    #[serde(default)]
+    service: String,
+}
+
+async fn fetch_logs(machine_id: String, service: String, lines: u32) -> Result<Vec<String>, String> {
+    let window = web_sys::window().ok_or("No window")?;
+    let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
+    let token = storage.get_item("np_token").map_err(|_| "No token")?;
+
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("GET");
+
+    let url = format!("/api/machines/{}/services/{}/logs?lines={}", machine_id, service, lines);
+    let request = web_sys::Request::new_with_str_and_init(&url, &opts)
+        .map_err(|_| "Failed to create request")?;
+
+    if let Some(t) = token {
+        request.headers().set("Authorization", &format!("Bearer {}", t)).ok();
+    }
+
+    let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|_| "Fetch failed")?;
+
+    let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
+
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+
+    let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
+        .await
+        .map_err(|_| "JSON parse failed")?;
+
+    let response: LogsResponse = serde_wasm_bindgen::from_value(json)
+        .map_err(|e| format!("Deserialize failed: {:?}", e))?;
+
+    Ok(response.logs)
+}
 
 /// Service logs page with live streaming
 #[component]
@@ -14,6 +59,8 @@ pub fn ServiceLogsPage() -> impl IntoView {
 
     // Log state
     let (logs, set_logs) = signal(Vec::<String>::new());
+    let (loading, set_loading) = signal(true);
+    let (error, set_error) = signal(Option::<String>::None);
     let (is_streaming, set_is_streaming) = signal(false);
     let (auto_scroll, set_auto_scroll) = signal(true);
     let (filter, set_filter) = signal(String::new());
@@ -21,30 +68,55 @@ pub fn ServiceLogsPage() -> impl IntoView {
     // Log options
     let (lines_to_fetch, set_lines_to_fetch) = signal(100u32);
 
-    // Mock logs for demonstration
-    let mock_logs = vec![
-        "2024-01-15T10:30:00+0000 sshd[1234]: Server listening on 0.0.0.0 port 22.".to_string(),
-        "2024-01-15T10:30:00+0000 sshd[1234]: Server listening on :: port 22.".to_string(),
-        "2024-01-15T10:35:22+0000 sshd[1234]: Accepted publickey for user from 192.168.1.100 port 54321 ssh2: RSA SHA256:xxxxx".to_string(),
-        "2024-01-15T10:35:22+0000 sshd[1234]: pam_unix(sshd:session): session opened for user user(uid=1000) by (uid=0)".to_string(),
-        "2024-01-15T10:40:15+0000 sshd[1234]: Received disconnect from 192.168.1.100 port 54321:11: disconnected by user".to_string(),
-        "2024-01-15T10:40:15+0000 sshd[1234]: Disconnected from user user 192.168.1.100 port 54321".to_string(),
-        "2024-01-15T10:40:15+0000 sshd[1234]: pam_unix(sshd:session): session closed for user user".to_string(),
-        "2024-01-15T11:00:00+0000 sshd[1234]: Accepted publickey for admin from 10.0.0.50 port 12345 ssh2: ED25519 SHA256:yyyyy".to_string(),
-    ];
+    // Fetch logs on mount
+    let mid = machine_id();
+    let svc = service_name();
+    if !mid.is_empty() && !svc.is_empty() {
+        leptos::task::spawn_local(async move {
+            match fetch_logs(mid, svc, 100).await {
+                Ok(l) => {
+                    set_logs.set(l);
+                    set_loading.set(false);
+                }
+                Err(e) => {
+                    set_error.set(Some(e));
+                    set_loading.set(false);
+                }
+            }
+        });
+    }
 
-    // Load initial logs
-    Effect::new(move |_| {
-        set_logs.set(mock_logs.clone());
-    });
+    // Refresh logs function
+    let refresh_logs = move |_| {
+        let mid = machine_id();
+        let svc = service_name();
+        let lines = lines_to_fetch.get();
+        if mid.is_empty() || svc.is_empty() {
+            return;
+        }
+        set_loading.set(true);
+        set_error.set(None);
+        leptos::task::spawn_local(async move {
+            match fetch_logs(mid, svc, lines).await {
+                Ok(l) => {
+                    set_logs.set(l);
+                    set_loading.set(false);
+                }
+                Err(e) => {
+                    set_error.set(Some(e));
+                    set_loading.set(false);
+                }
+            }
+        });
+    };
 
     let toggle_streaming = move |_| {
         let current = is_streaming.get();
         set_is_streaming.set(!current);
 
         if !current {
-            // Would connect to WebSocket here
-            // For demo, just append mock logs periodically
+            // Start periodic refresh (simple polling approach)
+            // Real WebSocket streaming would be implemented here
         }
     };
 
@@ -118,7 +190,7 @@ pub fn ServiceLogsPage() -> impl IntoView {
                         href=move || format!("/services/{}/{}", machine_id(), service_name())
                         attr:class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                     >
-                        "<- Back to Service"
+                        {"\u{2190} Back to Service"}
                     </A>
                     <div>
                         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -139,6 +211,12 @@ pub fn ServiceLogsPage() -> impl IntoView {
                     </Show>
                 </div>
             </div>
+
+            {move || error.get().map(|e| view! {
+                <div class="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                    {e}
+                </div>
+            })}
 
             // Controls
             <Card>
@@ -187,6 +265,13 @@ pub fn ServiceLogsPage() -> impl IntoView {
 
                     // Action buttons
                     <div class="flex items-center space-x-2">
+                        <button
+                            class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50"
+                            on:click=refresh_logs
+                            disabled=move || loading.get()
+                        >
+                            {move || if loading.get() { "Loading..." } else { "Refresh" }}
+                        </button>
                         <button
                             class=move || format!(
                                 "inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors {}",
@@ -242,28 +327,36 @@ pub fn ServiceLogsPage() -> impl IntoView {
                     class="p-4 font-mono text-sm overflow-auto"
                     style="max-height: 600px; min-height: 400px;"
                 >
-                    <Show
-                        when=move || !filtered_logs().is_empty()
-                        fallback=|| view! {
-                            <p class="text-gray-500 text-center py-8">
-                                "No log entries to display."
-                            </p>
-                        }
-                    >
-                        <For
-                            each=filtered_logs
-                            key=|l| l.clone()
-                            let:log
-                        >
-                            {
-                                let log_class = get_log_class(&log);
-                                view! {
-                                    <p class=format!("whitespace-pre-wrap break-all py-0.5 hover:bg-gray-800 {}", log_class)>
-                                        {log}
-                                    </p>
-                                }
+                    <Show when=move || loading.get()>
+                        <p class="text-gray-500 text-center py-8">
+                            "Loading logs..."
+                        </p>
+                    </Show>
+
+                    <Show when=move || !loading.get()>
+                        <Show
+                            when=move || !filtered_logs().is_empty()
+                            fallback=|| view! {
+                                <p class="text-gray-500 text-center py-8">
+                                    "No log entries to display. Click Refresh to fetch logs."
+                                </p>
                             }
-                        </For>
+                        >
+                            <For
+                                each=filtered_logs
+                                key=|l| l.clone()
+                                let:log
+                            >
+                                {
+                                    let log_class = get_log_class(&log);
+                                    view! {
+                                        <p class=format!("whitespace-pre-wrap break-all py-0.5 hover:bg-gray-800 {}", log_class)>
+                                            {log}
+                                        </p>
+                                    }
+                                }
+                            </For>
+                        </Show>
                     </Show>
                 </div>
             </div>
