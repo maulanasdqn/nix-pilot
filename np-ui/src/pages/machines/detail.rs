@@ -1,9 +1,22 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsCast;
 
 use crate::components::common::Card;
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct MachineStatus {
+    #[serde(default)]
+    status: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TestResponse {
+    #[serde(default)]
+    machine: MachineStatus,
+}
 
 async fn delete_machine(id: String) -> Result<(), String> {
     let window = web_sys::window().ok_or("No window")?;
@@ -59,13 +72,10 @@ async fn test_machine_connection(id: String) -> Result<String, String> {
         .await
         .map_err(|_| "JSON parse failed")?;
 
-    let status = js_sys::Reflect::get(&json, &"machine".into())
-        .ok()
-        .and_then(|m| js_sys::Reflect::get(&m, &"status".into()).ok())
-        .and_then(|s| s.as_string())
-        .unwrap_or_else(|| "unknown".to_string());
+    let response: TestResponse = serde_wasm_bindgen::from_value(json)
+        .map_err(|e| format!("Deserialize failed: {:?}", e))?;
 
-    Ok(status)
+    Ok(response.machine.status)
 }
 
 /// Machine detail page

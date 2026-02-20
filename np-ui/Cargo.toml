@@ -35,6 +35,15 @@ web-sys = { version = "0.3", optional = true, features = [
     "RequestInit",
     "Response",
     "Headers",
+    "Navigator",
+    "Clipboard",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlAnchorElement",
+    "Url",
+    "Blob",
+    "KeyboardEvent",
 ] }
 
 # Server-side dependencies (ssr feature)

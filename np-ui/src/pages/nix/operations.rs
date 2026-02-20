@@ -296,9 +296,27 @@ pub fn NixOperationsPage() -> impl IntoView {
                                 class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500"
                                 prop:value=search_query
                                 on:input=move |ev| set_search_query.set(event_target_value(&ev))
-                                on:keypress=move |ev| {
+                                on:keypress=move |ev: web_sys::KeyboardEvent| {
                                     if ev.key() == "Enter" {
-                                        on_search(ev);
+                                        ev.prevent_default();
+                                        let query = search_query.get();
+                                        if query.is_empty() {
+                                            return;
+                                        }
+                                        set_is_searching.set(true);
+                                        set_error_msg.set(None);
+                                        leptos::task::spawn_local(async move {
+                                            match search_packages(query).await {
+                                                Ok(results) => {
+                                                    set_search_results.set(results);
+                                                    set_is_searching.set(false);
+                                                }
+                                                Err(e) => {
+                                                    set_error_msg.set(Some(format!("Search failed: {}", e)));
+                                                    set_is_searching.set(false);
+                                                }
+                                            }
+                                        });
                                     }
                                 }
                             />

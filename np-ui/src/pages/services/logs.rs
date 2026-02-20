@@ -65,7 +65,7 @@ pub fn ServiceLogsPage() -> impl IntoView {
         // Create blob and download
         if let Some(window) = web_sys::window() {
             if let Some(document) = window.document() {
-                let blob_parts = js_sys::Array::new();
+                let blob_parts = web_sys::js_sys::Array::new();
                 blob_parts.push(&wasm_bindgen::JsValue::from_str(&content));
 
                 if let Ok(blob) = web_sys::Blob::new_with_str_sequence(&blob_parts) {

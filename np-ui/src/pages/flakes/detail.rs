@@ -43,6 +43,12 @@ struct FlakeOutputs {
     nixos_modules: Vec<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct UpdateResponse {
+    #[serde(default)]
+    message: String,
+}
+
 async fn fetch_flake(id: String) -> Result<FlakeInfo, String> {
     let window = web_sys::window().ok_or("No window")?;
     let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
@@ -107,7 +113,7 @@ async fn fetch_outputs(id: String) -> Result<FlakeOutputs, String> {
         .await
         .map_err(|_| "JSON parse failed")?;
 
-    serde_wasm_bindgen::from_value(json).unwrap_or_default()
+    Ok(serde_wasm_bindgen::from_value(json).unwrap_or_default())
 }
 
 async fn refresh_metadata(id: String) -> Result<FlakeInfo, String> {
@@ -207,12 +213,10 @@ async fn update_lock(id: String, input: Option<String>) -> Result<String, String
         .await
         .map_err(|_| "JSON parse failed")?;
 
-    let message = js_sys::Reflect::get(&json, &"message".into())
-        .ok()
-        .and_then(|v| v.as_string())
-        .unwrap_or_else(|| "Update started".to_string());
+    let response: UpdateResponse = serde_wasm_bindgen::from_value(json)
+        .map_err(|e| format!("Deserialize failed: {:?}", e))?;
 
-    Ok(message)
+    Ok(if response.message.is_empty() { "Update started".to_string() } else { response.message })
 }
 
 impl Default for FlakeOutputs {
