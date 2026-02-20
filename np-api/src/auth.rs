@@ -2,7 +2,7 @@
 //!
 //! Supports:
 //! - Username/password login
-//! - Session-based authentication
+//! - Session-based authentication with disk persistence
 //! - API key authentication (optional)
 
 use axum::{
@@ -14,6 +14,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -27,6 +28,7 @@ pub struct AuthState {
     pub password_hash: String,
     pub sessions: SessionStore,
     pub enabled: bool,
+    pub sessions_file: PathBuf,
 }
 
 impl AuthState {
@@ -36,15 +38,22 @@ impl AuthState {
         let enabled = std::env::var("NP_AUTH_ENABLED")
             .map(|v| v == "true" || v == "1")
             .unwrap_or(true); // Enabled by default
+        let data_dir = std::env::var("NP_DATA_DIR").unwrap_or_else(|_| "/var/lib/nix-pilot".to_string());
 
         // Simple hash using first 32 chars of sha256-like hash
         let password_hash = simple_hash(&password);
 
+        let sessions_file = PathBuf::from(&data_dir).join("sessions.json");
+
+        // Load existing sessions from disk
+        let sessions = load_sessions(&sessions_file);
+
         Self {
             username,
             password_hash,
-            sessions: Arc::new(RwLock::new(HashSet::new())),
+            sessions: Arc::new(RwLock::new(sessions)),
             enabled,
+            sessions_file,
         }
     }
 
@@ -54,7 +63,10 @@ impl AuthState {
 
     pub async fn create_session(&self) -> String {
         let token = uuid::Uuid::new_v4().to_string();
-        self.sessions.write().await.insert(token.clone());
+        {
+            self.sessions.write().await.insert(token.clone());
+        }
+        self.persist_sessions().await;
         token
     }
 
@@ -63,8 +75,28 @@ impl AuthState {
     }
 
     pub async fn invalidate_session(&self, token: &str) {
-        self.sessions.write().await.remove(token);
+        {
+            self.sessions.write().await.remove(token);
+        }
+        self.persist_sessions().await;
     }
+
+    async fn persist_sessions(&self) {
+        let sessions = self.sessions.read().await;
+        let sessions_vec: Vec<&String> = sessions.iter().collect();
+        if let Ok(json) = serde_json::to_string(&sessions_vec) {
+            let _ = tokio::fs::write(&self.sessions_file, json).await;
+        }
+    }
+}
+
+fn load_sessions(path: &PathBuf) -> HashSet<String> {
+    if let Ok(content) = std::fs::read_to_string(path) {
+        if let Ok(sessions) = serde_json::from_str::<Vec<String>>(&content) {
+            return sessions.into_iter().collect();
+        }
+    }
+    HashSet::new()
 }
 
 /// Simple hash function (not cryptographically secure, but works without extra deps)
