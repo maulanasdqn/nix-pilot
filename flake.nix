@@ -172,10 +172,11 @@
 <body>
   <div id="app" class="loading"><span class="loading-text">Loading Nix Pilot...</span></div>
   <script type="module">
-    import init, { hydrate } from '/pkg/np_ui.js';
+    const v = Date.now();
+    const { default: init, hydrate } = await import('/pkg/np_ui.js?v=' + v);
     async function run() {
       try {
-        await init('/pkg/np_ui_bg.wasm');
+        await init('/pkg/np_ui_bg.wasm?v=' + v);
         document.getElementById('app').innerHTML = "";
         document.getElementById('app').className = "";
         hydrate();
