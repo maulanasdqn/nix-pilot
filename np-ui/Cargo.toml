@@ -27,7 +27,7 @@ wasm-bindgen-futures = { version = "0.4", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
 gloo-net = { version = "0.6", optional = true }
 gloo-timers = { version = "0.3", optional = true }
-serde_wasm_bindgen = { version = "0.6", optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
 web-sys = { version = "0.3", optional = true, features = [
     "Window",
     "Storage",
@@ -55,7 +55,7 @@ hydrate = [
     "dep:console_error_panic_hook",
     "dep:gloo-net",
     "dep:gloo-timers",
-    "dep:serde_wasm_bindgen",
+    "dep:serde-wasm-bindgen",
     "dep:web-sys",
 ]
 ssr = [
