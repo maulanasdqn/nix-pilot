@@ -3,7 +3,8 @@ members = ["np-core", "np-api", "np-ui"]
 resolver = "2"
 
 [workspace.package]
-version = "0.2.0"
+name = "nix-pilot"
+version = "0.2.1"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/ms/nix-pilot"
