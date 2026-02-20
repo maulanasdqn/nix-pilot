@@ -2,6 +2,7 @@ mod dashboard;
 pub mod deploy;
 pub mod flakes;
 pub mod install;
+mod login;
 pub mod machines;
 pub mod nix;
 mod not_found;
@@ -11,6 +12,7 @@ pub mod settings;
 
 pub use dashboard::DashboardPage;
 pub use deploy::{DeployProgressPage, DeployWizardPage};
+pub use login::LoginPage;
 pub use flakes::{AddFlakePage, FlakeDetailPage, FlakeListPage};
 pub use install::InstallWizardPage;
 pub use machines::{AddMachinePage, MachineDetailPage, MachineListPage};
