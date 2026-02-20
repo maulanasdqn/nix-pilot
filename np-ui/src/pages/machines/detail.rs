@@ -77,6 +77,7 @@ pub fn MachineDetailPage() -> impl IntoView {
     let (deleting, set_deleting) = signal(false);
     let (testing, set_testing) = signal(false);
     let (status_msg, set_status_msg) = signal(Option::<String>::None);
+    let (show_terminal_info, set_show_terminal_info) = signal(false);
 
     let on_delete = move |_| {
         let id = machine_id();
@@ -240,12 +241,37 @@ pub fn MachineDetailPage() -> impl IntoView {
                         >
                             "Deploy Configuration"
                         </A>
-                        <button class="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-md transition-colors">
-                            "Open Terminal"
+                        <button
+                            class="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-md transition-colors"
+                            on:click=move |_| set_show_terminal_info.set(!show_terminal_info.get())
+                        >
+                            {move || if show_terminal_info.get() { "Hide Terminal Info" } else { "Open Terminal" }}
                         </button>
                     </div>
                 </Card>
             </div>
+
+            // Terminal connection info
+            <Show when=move || show_terminal_info.get()>
+                <Card title="Terminal Connection".to_string()>
+                    <div class="space-y-4">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            "Use the following command to connect to this machine via SSH:"
+                        </p>
+                        <div class="bg-gray-900 rounded-lg p-4">
+                            <code class="text-green-400 font-mono text-sm">
+                                "ssh root@" {machine_id} " -p 22"
+                            </code>
+                        </div>
+                        <p class="text-xs text-gray-400 dark:text-gray-500">
+                            "Note: Replace 'root' with your username and '22' with the configured port if different."
+                        </p>
+                        <div class="flex items-center space-x-2 text-sm text-gray-500">
+                            <span>"Web-based terminal coming soon in a future release."</span>
+                        </div>
+                    </div>
+                </Card>
+            </Show>
 
             <p class="text-sm text-gray-500">
                 "Machine ID: " {machine_id}

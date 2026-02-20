@@ -1,19 +1,253 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::JsCast;
 
 use crate::components::common::Card;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct AgeKeyInfo {
+    pub public_key: String,
+    #[serde(default)]
+    pub comment: Option<String>,
+    #[serde(default)]
+    pub is_default: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct KeyListResponse {
+    pub keys: Vec<AgeKeyInfo>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct KeyResponse {
+    pub public_key: String,
+    pub comment: Option<String>,
+}
+
+async fn fetch_keys() -> Result<Vec<AgeKeyInfo>, String> {
+    let window = web_sys::window().ok_or("No window")?;
+    let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
+    let token = storage.get_item("np_token").map_err(|_| "No token")?;
+
+    let mut opts = web_sys::RequestInit::new();
+    opts.set_method("GET");
+
+    let request = web_sys::Request::new_with_str_and_init("/api/secrets/keys", &opts)
+        .map_err(|_| "Failed to create request")?;
+
+    if let Some(t) = token {
+        request.headers().set("Authorization", &format!("Bearer {}", t)).ok();
+    }
+
+    let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|_| "Fetch failed")?;
+
+    let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
+
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+
+    let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
+        .await
+        .map_err(|_| "JSON parse failed")?;
+
+    let response: KeyListResponse = serde_wasm_bindgen::from_value(json)
+        .map_err(|e| format!("Deserialize failed: {:?}", e))?;
+
+    Ok(response.keys)
+}
+
+async fn generate_key(comment: Option<String>) -> Result<KeyResponse, String> {
+    let window = web_sys::window().ok_or("No window")?;
+    let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
+    let token = storage.get_item("np_token").map_err(|_| "No token")?;
+
+    let body = serde_json::json!({ "comment": comment });
+
+    let mut opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
+
+    let request = web_sys::Request::new_with_str_and_init("/api/secrets/keys", &opts)
+        .map_err(|_| "Failed to create request")?;
+
+    if let Some(t) = token {
+        request.headers().set("Authorization", &format!("Bearer {}", t)).ok();
+    }
+    request.headers().set("Content-Type", "application/json").ok();
+
+    let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|_| "Fetch failed")?;
+
+    let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
+
+    if !resp.ok() {
+        return Err(format!("Generate failed: {}", resp.status()));
+    }
+
+    let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
+        .await
+        .map_err(|_| "JSON parse failed")?;
+
+    serde_wasm_bindgen::from_value(json)
+        .map_err(|e| format!("Deserialize failed: {:?}", e))
+}
+
+async fn import_key(private_key: String, comment: Option<String>) -> Result<KeyResponse, String> {
+    let window = web_sys::window().ok_or("No window")?;
+    let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
+    let token = storage.get_item("np_token").map_err(|_| "No token")?;
+
+    let body = serde_json::json!({
+        "private_key": private_key,
+        "comment": comment
+    });
+
+    let mut opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
+
+    let request = web_sys::Request::new_with_str_and_init("/api/secrets/keys/import", &opts)
+        .map_err(|_| "Failed to create request")?;
+
+    if let Some(t) = token {
+        request.headers().set("Authorization", &format!("Bearer {}", t)).ok();
+    }
+    request.headers().set("Content-Type", "application/json").ok();
+
+    let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|_| "Fetch failed")?;
+
+    let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
+
+    if !resp.ok() {
+        return Err(format!("Import failed: {}", resp.status()));
+    }
+
+    let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
+        .await
+        .map_err(|_| "JSON parse failed")?;
+
+    serde_wasm_bindgen::from_value(json)
+        .map_err(|e| format!("Deserialize failed: {:?}", e))
+}
+
+async fn copy_to_clipboard(text: &str) -> Result<(), String> {
+    let window = web_sys::window().ok_or("No window")?;
+    let navigator = window.navigator();
+    let clipboard = navigator.clipboard();
+
+    wasm_bindgen_futures::JsFuture::from(clipboard.write_text(text))
+        .await
+        .map_err(|_| "Copy failed")?;
+
+    Ok(())
+}
 
 /// Age keys management page
 #[component]
 pub fn KeysPage() -> impl IntoView {
-    // In a real app, this would fetch from the API
-    let keys: Vec<()> = vec![];
+    let (loading, set_loading) = signal(true);
+    let (error, set_error) = signal(Option::<String>::None);
+    let (keys, set_keys) = signal(Vec::<AgeKeyInfo>::new());
+    let (action_msg, set_action_msg) = signal(Option::<String>::None);
 
     // Modal state for generating/importing keys
     let (show_generate_modal, set_show_generate_modal) = signal(false);
     let (show_import_modal, set_show_import_modal) = signal(false);
     let (key_comment, set_key_comment) = signal(String::new());
-    let (import_key, set_import_key) = signal(String::new());
+    let (import_key_value, set_import_key_value) = signal(String::new());
+    let (generating, set_generating) = signal(false);
+    let (importing, set_importing) = signal(false);
+
+    // Fetch keys on mount
+    leptos::task::spawn_local(async move {
+        match fetch_keys().await {
+            Ok(k) => {
+                set_keys.set(k);
+                set_loading.set(false);
+            }
+            Err(e) => {
+                set_error.set(Some(e));
+                set_loading.set(false);
+            }
+        }
+    });
+
+    let on_generate = move |_| {
+        let comment = key_comment.get();
+        let comment_opt = if comment.is_empty() { None } else { Some(comment) };
+
+        set_generating.set(true);
+        leptos::task::spawn_local(async move {
+            match generate_key(comment_opt).await {
+                Ok(key) => {
+                    set_action_msg.set(Some(format!("Key generated: {}", key.public_key)));
+                    set_show_generate_modal.set(false);
+                    set_key_comment.set(String::new());
+                    set_generating.set(false);
+                    // Refresh keys list
+                    if let Ok(k) = fetch_keys().await {
+                        set_keys.set(k);
+                    }
+                }
+                Err(e) => {
+                    set_action_msg.set(Some(format!("Generate failed: {}", e)));
+                    set_generating.set(false);
+                }
+            }
+        });
+    };
+
+    let on_import = move |_| {
+        let private_key = import_key_value.get();
+        if private_key.is_empty() {
+            set_action_msg.set(Some("Please enter a private key".to_string()));
+            return;
+        }
+
+        let comment = key_comment.get();
+        let comment_opt = if comment.is_empty() { None } else { Some(comment) };
+
+        set_importing.set(true);
+        leptos::task::spawn_local(async move {
+            match import_key(private_key, comment_opt).await {
+                Ok(key) => {
+                    set_action_msg.set(Some(format!("Key imported: {}", key.public_key)));
+                    set_show_import_modal.set(false);
+                    set_import_key_value.set(String::new());
+                    set_key_comment.set(String::new());
+                    set_importing.set(false);
+                    // Refresh keys list
+                    if let Ok(k) = fetch_keys().await {
+                        set_keys.set(k);
+                    }
+                }
+                Err(e) => {
+                    set_action_msg.set(Some(format!("Import failed: {}", e)));
+                    set_importing.set(false);
+                }
+            }
+        });
+    };
+
+    let on_copy = move |public_key: String| {
+        leptos::task::spawn_local(async move {
+            match copy_to_clipboard(&public_key).await {
+                Ok(()) => {
+                    set_action_msg.set(Some("Public key copied to clipboard".to_string()));
+                }
+                Err(e) => {
+                    set_action_msg.set(Some(format!("Copy failed: {}", e)));
+                }
+            }
+        });
+    };
 
     view! {
         <div class="space-y-6">
@@ -49,6 +283,18 @@ pub fn KeysPage() -> impl IntoView {
                 </div>
             </div>
 
+            {move || error.get().map(|e| view! {
+                <div class="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                    {e}
+                </div>
+            })}
+
+            {move || action_msg.get().map(|msg| view! {
+                <div class="p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded">
+                    {msg}
+                </div>
+            })}
+
             // Info about age keys
             <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <div class="flex">
@@ -69,34 +315,90 @@ pub fn KeysPage() -> impl IntoView {
                 </div>
             </div>
 
-            // Keys list
-            {if keys.is_empty() {
-                view! {
-                    <Card>
-                        <div class="text-center py-12">
-                            <div class="text-gray-400 text-5xl mb-4">"K"</div>
-                            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                                "No age keys configured"
-                            </h3>
-                            <p class="text-gray-500 dark:text-gray-400 mb-4">
-                                "Generate or import an age key to start encrypting secrets."
-                            </p>
-                            <button
-                                on:click=move |_| set_show_generate_modal.set(true)
-                                class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
-                            >
-                                "Generate Your First Key"
-                            </button>
-                        </div>
-                    </Card>
-                }.into_any()
-            } else {
-                view! {
-                    <div class="space-y-4">
-                        // Key cards would be rendered here
+            // Loading state
+            <Show when=move || loading.get()>
+                <Card>
+                    <div class="text-center py-12">
+                        <p class="text-gray-500">"Loading keys..."</p>
                     </div>
-                }.into_any()
-            }}
+                </Card>
+            </Show>
+
+            // Keys list
+            <Show when=move || !loading.get()>
+                {move || {
+                    let current_keys = keys.get();
+                    if current_keys.is_empty() {
+                        view! {
+                            <Card>
+                                <div class="text-center py-12">
+                                    <div class="text-gray-400 text-5xl mb-4">"K"</div>
+                                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                                        "No age keys configured"
+                                    </h3>
+                                    <p class="text-gray-500 dark:text-gray-400 mb-4">
+                                        "Generate or import an age key to start encrypting secrets."
+                                    </p>
+                                    <button
+                                        on:click=move |_| set_show_generate_modal.set(true)
+                                        class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
+                                    >
+                                        "Generate Your First Key"
+                                    </button>
+                                </div>
+                            </Card>
+                        }.into_any()
+                    } else {
+                        view! {
+                            <div class="space-y-4">
+                                {current_keys.into_iter().enumerate().map(|(i, key)| {
+                                    let public_key = key.public_key.clone();
+                                    let public_key_for_copy = public_key.clone();
+                                    let truncated_key = format!(
+                                        "{}...{}",
+                                        &public_key[..12.min(public_key.len())],
+                                        &public_key[public_key.len().saturating_sub(8)..]
+                                    );
+                                    let is_default = i == 0;
+
+                                    view! {
+                                        <Card>
+                                            <div class="flex items-start justify-between">
+                                                <div class="space-y-2">
+                                                    <div class="flex items-center space-x-2">
+                                                        <code class="text-sm font-mono text-gray-700 dark:text-gray-300">
+                                                            {truncated_key}
+                                                        </code>
+                                                        {is_default.then(|| view! {
+                                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                                "Default"
+                                                            </span>
+                                                        })}
+                                                    </div>
+                                                    {key.comment.map(|c| view! {
+                                                        <p class="text-sm text-gray-500 dark:text-gray-400">{c}</p>
+                                                    })}
+                                                    <p class="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                                                        {public_key.clone()}
+                                                    </p>
+                                                </div>
+                                                <div class="flex items-center space-x-2">
+                                                    <button
+                                                        class="px-3 py-1 text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-600 rounded"
+                                                        on:click=move |_| on_copy(public_key_for_copy.clone())
+                                                    >
+                                                        "Copy"
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </Card>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        }.into_any()
+                    }
+                }}
+            </Show>
 
             // Usage instructions
             <Card title="Using Age Keys".to_string()>
@@ -142,7 +444,7 @@ creation_rules:
             </Card>
 
             // Generate key modal
-            {move || show_generate_modal.get().then(|| view! {
+            <Show when=move || show_generate_modal.get()>
                 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
                         <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
@@ -175,17 +477,19 @@ creation_rules:
                                 "Cancel"
                             </button>
                             <button
-                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm text-sm font-medium text-white"
+                                on:click=on_generate
+                                disabled=move || generating.get()
+                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm text-sm font-medium text-white disabled:opacity-50"
                             >
-                                "Generate"
+                                {move || if generating.get() { "Generating..." } else { "Generate" }}
                             </button>
                         </div>
                     </div>
                 </div>
-            })}
+            </Show>
 
             // Import key modal
-            {move || show_import_modal.get().then(|| view! {
+            <Show when=move || show_import_modal.get()>
                 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
                         <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
@@ -198,8 +502,8 @@ creation_rules:
                                     "Private Key"
                                 </label>
                                 <textarea
-                                    prop:value=move || import_key.get()
-                                    on:input=move |ev| set_import_key.set(event_target_value(&ev))
+                                    prop:value=move || import_key_value.get()
+                                    on:input=move |ev| set_import_key_value.set(event_target_value(&ev))
                                     rows=3
                                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
                                     placeholder="AGE-SECRET-KEY-1..."
@@ -227,7 +531,7 @@ creation_rules:
                             <button
                                 on:click=move |_| {
                                     set_show_import_modal.set(false);
-                                    set_import_key.set(String::new());
+                                    set_import_key_value.set(String::new());
                                     set_key_comment.set(String::new());
                                 }
                                 class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -235,60 +539,16 @@ creation_rules:
                                 "Cancel"
                             </button>
                             <button
-                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm text-sm font-medium text-white"
+                                on:click=on_import
+                                disabled=move || importing.get()
+                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm text-sm font-medium text-white disabled:opacity-50"
                             >
-                                "Import"
+                                {move || if importing.get() { "Importing..." } else { "Import" }}
                             </button>
                         </div>
                     </div>
                 </div>
-            })}
+            </Show>
         </div>
-    }
-}
-
-/// Key card component
-#[component]
-fn KeyCard(
-    #[prop(into)] public_key: String,
-    #[prop(into, optional)] comment: Option<String>,
-    #[prop(into)] is_default: bool,
-) -> impl IntoView {
-    let truncated_key = format!(
-        "{}...{}",
-        &public_key[..12],
-        &public_key[public_key.len().saturating_sub(8)..]
-    );
-
-    view! {
-        <Card>
-            <div class="flex items-start justify-between">
-                <div class="space-y-2">
-                    <div class="flex items-center space-x-2">
-                        <code class="text-sm font-mono text-gray-700 dark:text-gray-300">
-                            {truncated_key}
-                        </code>
-                        {is_default.then(|| view! {
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                "Default"
-                            </span>
-                        })}
-                    </div>
-
-                    {comment.map(|c| view! {
-                        <p class="text-sm text-gray-500 dark:text-gray-400">{c}</p>
-                    })}
-                </div>
-
-                <div class="flex items-center space-x-2">
-                    <button
-                        class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        attr:title="Copy public key"
-                    >
-                        "C"
-                    </button>
-                </div>
-            </div>
-        </Card>
     }
 }

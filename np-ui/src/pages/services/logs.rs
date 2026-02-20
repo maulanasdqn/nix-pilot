@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
+use wasm_bindgen::JsCast;
 
 use crate::components::common::Card;
 
@@ -52,7 +53,35 @@ pub fn ServiceLogsPage() -> impl IntoView {
     };
 
     let download_logs = move |_| {
-        // Would trigger download in a real app
+        let current_logs = logs.get();
+        if current_logs.is_empty() {
+            return;
+        }
+
+        let content = current_logs.join("\n");
+        let service = service_name();
+        let filename = format!("{}-logs.txt", service);
+
+        // Create blob and download
+        if let Some(window) = web_sys::window() {
+            if let Some(document) = window.document() {
+                let blob_parts = js_sys::Array::new();
+                blob_parts.push(&wasm_bindgen::JsValue::from_str(&content));
+
+                if let Ok(blob) = web_sys::Blob::new_with_str_sequence(&blob_parts) {
+                    if let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) {
+                        if let Ok(a) = document.create_element("a") {
+                            let _ = a.set_attribute("href", &url);
+                            let _ = a.set_attribute("download", &filename);
+                            if let Some(html_element) = a.dyn_ref::<web_sys::HtmlElement>() {
+                                html_element.click();
+                            }
+                            let _ = web_sys::Url::revoke_object_url(&url);
+                        }
+                    }
+                }
+            }
+        }
     };
 
     let filtered_logs = move || {

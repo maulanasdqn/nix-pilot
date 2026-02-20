@@ -1,22 +1,169 @@
 use leptos::prelude::*;
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::JsCast;
 
 use crate::components::common::Card;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct SearchResult {
+    #[serde(default)]
+    attr_path: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    version: String,
+    #[serde(default)]
+    description: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct SearchResponse {
+    results: Vec<SearchResult>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct PathInfo {
+    #[serde(default)]
+    nar_size: u64,
+    #[serde(default)]
+    closure_size: u64,
+    #[serde(default)]
+    references: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct StoreInfo {
+    #[serde(default)]
+    store_url: String,
+    #[serde(default)]
+    version: Option<String>,
+}
+
+async fn fetch_store_info() -> Result<StoreInfo, String> {
+    let window = web_sys::window().ok_or("No window")?;
+    let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
+    let token = storage.get_item("np_token").map_err(|_| "No token")?;
+
+    let mut opts = web_sys::RequestInit::new();
+    opts.set_method("GET");
+
+    let request = web_sys::Request::new_with_str_and_init("/api/nix/store/info", &opts)
+        .map_err(|_| "Failed to create request")?;
+
+    if let Some(t) = token {
+        request.headers().set("Authorization", &format!("Bearer {}", t)).ok();
+    }
+
+    let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|_| "Fetch failed")?;
+
+    let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
+
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+
+    let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
+        .await
+        .map_err(|_| "JSON parse failed")?;
+
+    serde_wasm_bindgen::from_value(json)
+        .map_err(|e| format!("Deserialize failed: {:?}", e))
+}
+
+async fn search_packages(query: String) -> Result<Vec<SearchResult>, String> {
+    let window = web_sys::window().ok_or("No window")?;
+    let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
+    let token = storage.get_item("np_token").map_err(|_| "No token")?;
+
+    let body = serde_json::json!({ "query": query });
+
+    let mut opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
+
+    let request = web_sys::Request::new_with_str_and_init("/api/nix/search", &opts)
+        .map_err(|_| "Failed to create request")?;
+
+    if let Some(t) = token {
+        request.headers().set("Authorization", &format!("Bearer {}", t)).ok();
+    }
+    request.headers().set("Content-Type", "application/json").ok();
+
+    let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|_| "Fetch failed")?;
+
+    let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
+
+    if !resp.ok() {
+        return Err(format!("Search failed: {}", resp.status()));
+    }
+
+    let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
+        .await
+        .map_err(|_| "JSON parse failed")?;
+
+    let response: SearchResponse = serde_wasm_bindgen::from_value(json)
+        .map_err(|e| format!("Deserialize failed: {:?}", e))?;
+
+    Ok(response.results)
+}
+
+async fn get_path_info(path: String) -> Result<PathInfo, String> {
+    let window = web_sys::window().ok_or("No window")?;
+    let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
+    let token = storage.get_item("np_token").map_err(|_| "No token")?;
+
+    let body = serde_json::json!({ "path": path });
+
+    let mut opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
+
+    let request = web_sys::Request::new_with_str_and_init("/api/nix/path-info", &opts)
+        .map_err(|_| "Failed to create request")?;
+
+    if let Some(t) = token {
+        request.headers().set("Authorization", &format!("Bearer {}", t)).ok();
+    }
+    request.headers().set("Content-Type", "application/json").ok();
+
+    let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|_| "Fetch failed")?;
+
+    let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
+
+    if !resp.ok() {
+        return Err(format!("Path info failed: {}", resp.status()));
+    }
+
+    let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
+        .await
+        .map_err(|_| "JSON parse failed")?;
+
+    serde_wasm_bindgen::from_value(json)
+        .map_err(|e| format!("Deserialize failed: {:?}", e))
+}
 
 /// Nix operations page
 #[component]
 pub fn NixOperationsPage() -> impl IntoView {
     // Store info state
-    let (store_url, _set_store_url) = signal("daemon".to_string());
-    let (store_version, _set_store_version) = signal(Some("2.18.1".to_string()));
+    let (store_url, set_store_url) = signal("Loading...".to_string());
+    let (store_version, set_store_version) = signal(Option::<String>::None);
 
     // Search state
     let (search_query, set_search_query) = signal(String::new());
-    let (search_results, _set_search_results) = signal(Vec::<SearchResultMock>::new());
-    let (is_searching, _set_is_searching) = signal(false);
+    let (search_results, set_search_results) = signal(Vec::<SearchResult>::new());
+    let (is_searching, set_is_searching) = signal(false);
 
     // Path info state
     let (path_input, set_path_input) = signal(String::new());
-    let (path_info, _set_path_info) = signal(Option::<PathInfoMock>::None);
+    let (path_info, set_path_info) = signal(Option::<PathInfo>::None);
+    let (getting_path_info, set_getting_path_info) = signal(false);
 
     // Operation state
     let (active_operation, set_active_operation) = signal(Option::<&'static str>::None);
@@ -29,11 +176,73 @@ pub fn NixOperationsPage() -> impl IntoView {
     // Flake check options
     let (flake_ref, set_flake_ref) = signal(String::new());
 
+    // Error state
+    let (error_msg, set_error_msg) = signal(Option::<String>::None);
+
+    // Fetch store info on mount
+    leptos::task::spawn_local(async move {
+        match fetch_store_info().await {
+            Ok(info) => {
+                set_store_url.set(info.store_url);
+                set_store_version.set(info.version);
+            }
+            Err(e) => {
+                set_error_msg.set(Some(format!("Failed to fetch store info: {}", e)));
+            }
+        }
+    });
+
+    let on_search = move |_| {
+        let query = search_query.get();
+        if query.is_empty() {
+            return;
+        }
+        set_is_searching.set(true);
+        set_error_msg.set(None);
+        leptos::task::spawn_local(async move {
+            match search_packages(query).await {
+                Ok(results) => {
+                    set_search_results.set(results);
+                    set_is_searching.set(false);
+                }
+                Err(e) => {
+                    set_error_msg.set(Some(format!("Search failed: {}", e)));
+                    set_is_searching.set(false);
+                }
+            }
+        });
+    };
+
+    let on_get_path_info = move |_| {
+        let path = path_input.get();
+        if path.is_empty() {
+            return;
+        }
+        set_getting_path_info.set(true);
+        set_error_msg.set(None);
+        leptos::task::spawn_local(async move {
+            match get_path_info(path).await {
+                Ok(info) => {
+                    set_path_info.set(Some(info));
+                    set_getting_path_info.set(false);
+                }
+                Err(e) => {
+                    set_error_msg.set(Some(format!("Path info failed: {}", e)));
+                    set_getting_path_info.set(false);
+                }
+            }
+        });
+    };
+
     let start_operation = move |op: &'static str| {
         set_active_operation.set(Some(op));
         set_operation_output.set(vec![format!("Starting {}...", op)]);
         set_operation_running.set(true);
-        // In a real app, this would connect to the WebSocket
+        set_operation_output.update(|lines| {
+            lines.push("Note: This operation requires WebSocket connection.".to_string());
+            lines.push("Please use the nix-pilot CLI for full streaming support.".to_string());
+        });
+        set_operation_running.set(false);
     };
 
     let clear_output = move |_| {
@@ -49,6 +258,12 @@ pub fn NixOperationsPage() -> impl IntoView {
                     "Nix Operations"
                 </h1>
             </div>
+
+            {move || error_msg.get().map(|e| view! {
+                <div class="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                    {e}
+                </div>
+            })}
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 // Store Info
@@ -81,10 +296,16 @@ pub fn NixOperationsPage() -> impl IntoView {
                                 class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500"
                                 prop:value=search_query
                                 on:input=move |ev| set_search_query.set(event_target_value(&ev))
+                                on:keypress=move |ev| {
+                                    if ev.key() == "Enter" {
+                                        on_search(ev);
+                                    }
+                                }
                             />
                             <button
                                 class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md disabled:opacity-50"
                                 disabled=move || is_searching.get() || search_query.get().is_empty()
+                                on:click=on_search
                             >
                                 {move || if is_searching.get() { "Searching..." } else { "Search" }}
                             </button>
@@ -234,9 +455,10 @@ pub fn NixOperationsPage() -> impl IntoView {
                             />
                             <button
                                 class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md disabled:opacity-50"
-                                disabled=move || path_input.get().is_empty()
+                                disabled=move || path_input.get().is_empty() || getting_path_info.get()
+                                on:click=on_get_path_info
                             >
-                                "Get Info"
+                                {move || if getting_path_info.get() { "Loading..." } else { "Get Info" }}
                             </button>
                         </div>
 
@@ -298,25 +520,6 @@ pub fn NixOperationsPage() -> impl IntoView {
             </Show>
         </div>
     }
-}
-
-/// Mock search result
-#[derive(Clone)]
-struct SearchResultMock {
-    attr_path: String,
-    #[allow(dead_code)]
-    name: String,
-    #[allow(dead_code)]
-    version: String,
-    description: Option<String>,
-}
-
-/// Mock path info
-#[derive(Clone)]
-struct PathInfoMock {
-    nar_size: u64,
-    closure_size: u64,
-    references: usize,
 }
 
 fn format_bytes(bytes: u64) -> String {
