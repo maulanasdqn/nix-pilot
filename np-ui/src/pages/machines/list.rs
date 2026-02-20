@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::JsCast;
 
 use crate::components::common::Card;
 
@@ -49,7 +50,7 @@ async fn fetch_machines() -> Result<Vec<Machine>, String> {
     let token = storage.get_item("np_token").map_err(|_| "No token")?;
 
     let mut opts = web_sys::RequestInit::new();
-    opts.method("GET");
+    opts.set_method("GET");
 
     let request = web_sys::Request::new_with_str_and_init("/api/machines", &opts)
         .map_err(|_| "Failed to create request")?;
@@ -79,8 +80,8 @@ pub fn MachineListPage() -> impl IntoView {
     let machines = LocalResource::new(|| fetch_machines());
     let machines_view = move || {
         machines.get().map(|result| {
-            match result {
-                Ok(list) => list,
+            match &*result {
+                Ok(list) => list.clone(),
                 Err(_) => vec![],
             }
         }).unwrap_or_default()
