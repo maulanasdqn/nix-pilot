@@ -1,6 +1,44 @@
 # Nix Pilot
 
-A web-based management interface for NixOS systems. Manage machines, flakes, deployments, services, and secrets through a modern web UI.
+A web-based management interface for NixOS and nix-darwin systems. Manage flakes, services, secrets, and system rebuilds through a modern, responsive web UI.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Dashboard" width="800"/>
+  <br/>
+  <em>Dashboard - System overview and quick actions</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/services.png" alt="Services" width="800"/>
+  <br/>
+  <em>Services - Manage systemd services with real-time logs</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/flakes.png" alt="Flakes" width="800"/>
+  <br/>
+  <em>Flakes - Register and manage Nix flakes</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/rebuild.png" alt="Rebuild" width="800"/>
+  <br/>
+  <em>Rebuild - NixOS/nix-darwin system rebuild with live output</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/nix-operations.png" alt="Nix Operations" width="800"/>
+  <br/>
+  <em>Nix Operations - GC, store optimization, and flake checks</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/mobile.png" alt="Mobile View" width="400"/>
+  <br/>
+  <em>Responsive mobile interface</em>
+</p>
 
 ## Features
 
