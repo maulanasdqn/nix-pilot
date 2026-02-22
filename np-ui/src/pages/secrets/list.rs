@@ -1,8 +1,9 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::JsCast;
+use leptos::wasm_bindgen::JsCast;
 
+use crate::api::check_response_status;
 use crate::components::common::Card;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -45,9 +46,8 @@ async fn fetch_secrets() -> Result<Vec<SecretSummary>, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("HTTP {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -112,23 +112,23 @@ pub fn SecretsListPage() -> impl IntoView {
             // Header
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    <h1 class="text-2xl font-bold text-foreground ">
                         "Secrets"
                     </h1>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                    <p class="text-sm text-muted-foreground ">
                         "SOPS-encrypted secrets for NixOS"
                     </p>
                 </div>
                 <div class="flex items-center space-x-3">
                     <A
                         href="/secrets/keys"
-                        attr:class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-md transition-colors"
+                        attr:class="inline-flex items-center px-4 py-2 border border-border  bg-background hover:bg-muted  text-foreground  text-sm font-medium rounded-md transition-colors"
                     >
                         "Manage Keys"
                     </A>
                     <A
                         href="/secrets/add"
-                        attr:class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
+                        attr:class="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-md transition-colors"
                     >
                         "+ Add Secret"
                     </A>
@@ -136,7 +136,7 @@ pub fn SecretsListPage() -> impl IntoView {
             </div>
 
             {move || error.get().map(|e| view! {
-                <div class="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                <div class="p-3 bg-red-500/20 border border-red-500/30 text-red-700 rounded">
                     {e}
                 </div>
             })}
@@ -148,16 +148,16 @@ pub fn SecretsListPage() -> impl IntoView {
             })}
 
             // Info banner about SOPS/sops-nix
-            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div class="bg-blue-50900/20 border border-blue-200800 rounded-lg p-4">
                 <div class="flex">
                     <div class="flex-shrink-0">
                         <span class="text-blue-400 text-lg">"i"</span>
                     </div>
                     <div class="ml-3">
-                        <h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">
+                        <h3 class="text-sm font-medium text-blue-800200">
                             "Secrets are encrypted with SOPS"
                         </h3>
-                        <div class="mt-2 text-sm text-blue-700 dark:text-blue-300">
+                        <div class="mt-2 text-sm text-blue-700300">
                             <p>
                                 "Secrets are encrypted using age encryption and stored in YAML files compatible with "
                                 <a href="https://github.com/Mic92/sops-nix" class="underline" target="_blank">"sops-nix"</a>
@@ -172,7 +172,7 @@ pub fn SecretsListPage() -> impl IntoView {
             <Show when=move || loading.get()>
                 <Card>
                     <div class="text-center py-12">
-                        <p class="text-gray-500">"Loading secrets..."</p>
+                        <p class="text-muted-foreground">"Loading secrets..."</p>
                     </div>
                 </Card>
             </Show>
@@ -185,23 +185,23 @@ pub fn SecretsListPage() -> impl IntoView {
                         view! {
                             <Card>
                                 <div class="text-center py-12">
-                                    <div class="text-gray-400 text-5xl mb-4">"^"</div>
-                                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                                    <div class="text-muted-foreground text-5xl mb-4">"^"</div>
+                                    <h3 class="text-lg font-medium text-foreground  mb-2">
                                         "No secrets stored"
                                     </h3>
-                                    <p class="text-gray-500 dark:text-gray-400 mb-4">
+                                    <p class="text-muted-foreground  mb-4">
                                         "Create encrypted secrets for your NixOS deployments."
                                     </p>
                                     <div class="flex justify-center space-x-4">
                                         <A
                                             href="/secrets/keys"
-                                            attr:class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-md transition-colors"
+                                            attr:class="inline-flex items-center px-4 py-2 border border-border  bg-background hover:bg-muted  text-foreground  text-sm font-medium rounded-md transition-colors"
                                         >
                                             "Setup Age Keys"
                                         </A>
                                         <A
                                             href="/secrets/add"
-                                            attr:class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
+                                            attr:class="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-md transition-colors"
                                         >
                                             "Add Your First Secret"
                                         </A>
@@ -222,19 +222,19 @@ pub fn SecretsListPage() -> impl IntoView {
                                     let tags = secret.tags.clone();
 
                                     let type_badge_class = match secret_type.as_str() {
-                                        "text" => "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-                                        "ssh_key" => "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-                                        "certificate" | "tls_key" => "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-                                        "env_file" => "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-                                        _ => "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+                                        "text" => "bg-blue-100 text-blue-800900200",
+                                        "ssh_key" => "bg-purple-100 text-purple-800900200",
+                                        "certificate" | "tls_key" => "bg-green-500/20 text-green-400900200",
+                                        "env_file" => "bg-yellow-500/20 text-yellow-400900200",
+                                        _ => "bg-muted text-foreground  ",
                                     };
 
                                     view! {
-                                        <Card class="hover:border-indigo-500 transition-colors".to_string()>
+                                        <Card class="hover:border-primary transition-colors".to_string()>
                                             <div class="flex items-start justify-between">
                                                 <div class="space-y-2">
                                                     <div class="flex items-center space-x-2">
-                                                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                                                        <h3 class="text-lg font-medium text-foreground ">
                                                             {name.clone()}
                                                         </h3>
                                                         <span class=format!("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {}", type_badge_class)>
@@ -243,20 +243,20 @@ pub fn SecretsListPage() -> impl IntoView {
                                                     </div>
 
                                                     {description.map(|desc| view! {
-                                                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                                                        <p class="text-sm text-muted-foreground ">
                                                             {desc}
                                                         </p>
                                                     })}
 
                                                     <div class="flex items-center space-x-2">
                                                         {environment.map(|env| view! {
-                                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-foreground  ">
                                                                 {env}
                                                             </span>
                                                         })}
 
                                                         {tags.into_iter().map(|tag| view! {
-                                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground  ">
                                                                 {tag}
                                                             </span>
                                                         }).collect::<Vec<_>>()}
@@ -265,7 +265,7 @@ pub fn SecretsListPage() -> impl IntoView {
 
                                                 <div class="flex items-center space-x-2">
                                                     <button
-                                                        class="px-3 py-1 text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-600 rounded"
+                                                        class="px-3 py-1 text-sm font-medium text-primary hover:text-primary/80 border border-indigo-300 rounded"
                                                         on:click=move |_| on_copy(name_for_copy.clone())
                                                         title="Copy secret path"
                                                     >
@@ -273,7 +273,7 @@ pub fn SecretsListPage() -> impl IntoView {
                                                     </button>
                                                     <A
                                                         href=format!("/secrets/{}", id)
-                                                        attr:class="px-3 py-1 text-sm font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded"
+                                                        attr:class="px-3 py-1 text-sm font-medium text-muted-foreground hover:text-foreground  border border-border  rounded"
                                                         attr:title="View details"
                                                     >
                                                         "View"
@@ -293,10 +293,10 @@ pub fn SecretsListPage() -> impl IntoView {
             <Card title="Quick Reference".to_string()>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <h4 class="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                        <h4 class="font-medium text-foreground  mb-2">
                             "Secret Types"
                         </h4>
-                        <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                        <ul class="space-y-2 text-sm text-muted-foreground ">
                             <li class="flex items-center">
                                 <span class="w-20 font-medium">"Text"</span>
                                 <span>"Passwords, API keys, tokens"</span>
@@ -316,10 +316,10 @@ pub fn SecretsListPage() -> impl IntoView {
                         </ul>
                     </div>
                     <div>
-                        <h4 class="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                        <h4 class="font-medium text-foreground  mb-2">
                             "Using with sops-nix"
                         </h4>
-                        <pre class="bg-gray-100 dark:bg-gray-800 rounded p-3 text-xs overflow-x-auto font-mono">
+                        <pre class="bg-muted  rounded p-3 text-xs overflow-x-auto font-mono">
 {r#"# In your NixOS config:
 sops.secrets."mySecret" = {
   sopsFile = ./secrets.yaml;

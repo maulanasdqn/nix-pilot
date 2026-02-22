@@ -47,3 +47,10 @@ regex = "1.11"
 
 # Internal crates
 np-core = { path = "np-core" }
+strum = { version = "0.27", features = ["derive"] }
+
+# Leptos UI components library
+leptos_ui = "0.3"
+
+# Tailwind CSS merge utility
+tw_merge = "0.1"

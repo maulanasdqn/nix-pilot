@@ -22,6 +22,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/auth/check", get(auth::check_auth))
         // Health check
         .route("/health", get(routes::health_check))
+        // Local system management
+        .route("/system/info", get(routes::get_system_info))
+        .route("/system/services", get(routes::list_local_services))
+        .route("/system/services/{service}", get(routes::get_local_service))
+        .route("/system/services/{service}/action", post(routes::local_service_action))
+        .route("/system/services/{service}/logs", get(routes::get_local_service_logs))
+        .route("/system/rebuild", post(routes::start_rebuild))
         // Machines
         .route("/machines", get(routes::list_machines))
         .route("/machines", post(routes::create_machine))

@@ -1,7 +1,8 @@
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::JsCast;
+use leptos::wasm_bindgen::JsCast;
 
+use crate::api::check_response_status;
 use crate::components::common::Card;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -60,9 +61,8 @@ async fn fetch_store_info() -> Result<StoreInfo, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("HTTP {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -97,9 +97,8 @@ async fn search_packages(query: String) -> Result<Vec<SearchResult>, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("Search failed: {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -136,9 +135,8 @@ async fn get_path_info(path: String) -> Result<PathInfo, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("Path info failed: {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -254,13 +252,13 @@ pub fn NixOperationsPage() -> impl IntoView {
         <div class="space-y-6">
             // Header
             <div class="flex items-center justify-between">
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                <h1 class="text-2xl font-bold text-foreground ">
                     "Nix Operations"
                 </h1>
             </div>
 
             {move || error_msg.get().map(|e| view! {
-                <div class="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                <div class="p-3 bg-red-500/20 border border-red-500/30 text-red-700 rounded">
                     {e}
                 </div>
             })}
@@ -270,15 +268,15 @@ pub fn NixOperationsPage() -> impl IntoView {
                 <Card title="Store Info".to_string()>
                     <dl class="space-y-3">
                         <div>
-                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Store URL"</dt>
-                            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">
-                                {store_url}
+                            <dt class="text-sm font-medium text-muted-foreground ">"Store URL"</dt>
+                            <dd class="mt-1 text-sm text-foreground  font-mono">
+                                {move || store_url.get()}
                             </dd>
                         </div>
                         {move || store_version.get().map(|v| view! {
                             <div>
-                                <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Nix Version"</dt>
-                                <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">
+                                <dt class="text-sm font-medium text-muted-foreground ">"Nix Version"</dt>
+                                <dd class="mt-1 text-sm text-foreground  font-mono">
                                     {v}
                                 </dd>
                             </div>
@@ -293,9 +291,9 @@ pub fn NixOperationsPage() -> impl IntoView {
                             <input
                                 type="text"
                                 placeholder="Search packages (e.g., 'ripgrep')"
-                                class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500"
-                                prop:value=search_query
+                                class="flex-1 px-3 py-2 border border-border  rounded-md bg-background text-foreground  focus:ring-ring focus:border-primary"
                                 on:input=move |ev| set_search_query.set(event_target_value(&ev))
+                                prop:value=move || search_query.get()
                                 on:keypress=move |ev: web_sys::KeyboardEvent| {
                                     if ev.key() == "Enter" {
                                         ev.prevent_default();
@@ -321,7 +319,7 @@ pub fn NixOperationsPage() -> impl IntoView {
                                 }
                             />
                             <button
-                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md disabled:opacity-50"
+                                class="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-md disabled:opacity-50"
                                 disabled=move || is_searching.get() || search_query.get().is_empty()
                                 on:click=on_search
                             >
@@ -334,23 +332,23 @@ pub fn NixOperationsPage() -> impl IntoView {
                             <Show
                                 when=move || !search_results.get().is_empty()
                                 fallback=|| view! {
-                                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                                    <p class="text-sm text-muted-foreground  text-center py-4">
                                         "Enter a search term to find packages"
                                     </p>
                                 }
                             >
-                                <ul class="divide-y divide-gray-200 dark:divide-gray-700">
+                                <ul class="divide-y divide-border">
                                     <For
                                         each=move || search_results.get()
                                         key=|r| r.attr_path.clone()
                                         let:result
                                     >
                                         <li class="py-2">
-                                            <div class="font-mono text-sm text-indigo-600 dark:text-indigo-400">
+                                            <div class="font-mono text-sm text-primary">
                                                 {result.attr_path.clone()}
                                             </div>
                                             {result.description.clone().map(|d| view! {
-                                                <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                <p class="text-xs text-muted-foreground  truncate">
                                                     {d}
                                                 </p>
                                             })}
@@ -368,17 +366,17 @@ pub fn NixOperationsPage() -> impl IntoView {
                 // Garbage Collection
                 <Card title="Garbage Collection".to_string()>
                     <div class="space-y-4">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                        <p class="text-sm text-muted-foreground ">
                             "Remove unused store paths to free disk space."
                         </p>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label class="block text-sm font-medium text-foreground  mb-1">
                                 "Delete older than"
                             </label>
                             <select
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                                prop:value=gc_older_than
+                                class="w-full px-3 py-2 border border-border  rounded-md bg-background text-foreground "
                                 on:change=move |ev| set_gc_older_than.set(event_target_value(&ev))
+                                prop:value=move || gc_older_than.get()
                             >
                                 <option value="">"All unused"</option>
                                 <option value="1d">"1 day"</option>
@@ -388,7 +386,7 @@ pub fn NixOperationsPage() -> impl IntoView {
                             </select>
                         </div>
                         <button
-                            class="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md disabled:opacity-50"
+                            class="w-full px-4 py-2 bg-destructive text-destructive-foreground hover:bg-destructive/90 text-sm font-medium rounded-md disabled:opacity-50"
                             disabled=move || operation_running.get()
                             on:click=move |_| start_operation("gc")
                         >
@@ -400,11 +398,11 @@ pub fn NixOperationsPage() -> impl IntoView {
                 // Store Optimise
                 <Card title="Store Optimise".to_string()>
                     <div class="space-y-4">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                        <p class="text-sm text-muted-foreground ">
                             "Deduplicate files in the Nix store using hard links."
                         </p>
                         <button
-                            class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md disabled:opacity-50"
+                            class="w-full px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium rounded-md disabled:opacity-50"
                             disabled=move || operation_running.get()
                             on:click=move |_| start_operation("optimise")
                         >
@@ -416,11 +414,11 @@ pub fn NixOperationsPage() -> impl IntoView {
                 // Store Verify
                 <Card title="Store Verify".to_string()>
                     <div class="space-y-4">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                        <p class="text-sm text-muted-foreground ">
                             "Verify the integrity of store paths."
                         </p>
                         <button
-                            class="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-md disabled:opacity-50"
+                            class="w-full px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm font-medium rounded-md disabled:opacity-50"
                             disabled=move || operation_running.get()
                             on:click=move |_| start_operation("verify")
                         >
@@ -432,23 +430,23 @@ pub fn NixOperationsPage() -> impl IntoView {
                 // Flake Check
                 <Card title="Flake Check".to_string()>
                     <div class="space-y-4">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                        <p class="text-sm text-muted-foreground ">
                             "Run checks defined in a flake."
                         </p>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label class="block text-sm font-medium text-foreground  mb-1">
                                 "Flake reference"
                             </label>
                             <input
                                 type="text"
                                 placeholder=". or github:user/repo"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
-                                prop:value=flake_ref
+                                class="w-full px-3 py-2 border border-border  rounded-md bg-background text-foreground  font-mono text-sm"
                                 on:input=move |ev| set_flake_ref.set(event_target_value(&ev))
+                                prop:value=move || flake_ref.get()
                             />
                         </div>
                         <button
-                            class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md disabled:opacity-50"
+                            class="w-full px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium rounded-md disabled:opacity-50"
                             disabled=move || operation_running.get() || flake_ref.get().is_empty()
                             on:click=move |_| start_operation("flake-check")
                         >
@@ -460,19 +458,19 @@ pub fn NixOperationsPage() -> impl IntoView {
                 // Path Info
                 <Card title="Path Info".to_string() class="md:col-span-2".to_string()>
                     <div class="space-y-4">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                        <p class="text-sm text-muted-foreground ">
                             "Get information about a store path including size and references."
                         </p>
                         <div class="flex space-x-2">
                             <input
                                 type="text"
                                 placeholder="/nix/store/..."
-                                class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
-                                prop:value=path_input
+                                class="flex-1 px-3 py-2 border border-border  rounded-md bg-background text-foreground  font-mono text-sm"
                                 on:input=move |ev| set_path_input.set(event_target_value(&ev))
+                                prop:value=move || path_input.get()
                             />
                             <button
-                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md disabled:opacity-50"
+                                class="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-md disabled:opacity-50"
                                 disabled=move || path_input.get().is_empty() || getting_path_info.get()
                                 on:click=on_get_path_info
                             >
@@ -482,17 +480,17 @@ pub fn NixOperationsPage() -> impl IntoView {
 
                         // Path info display
                         {move || path_info.get().map(|info| view! {
-                            <div class="bg-gray-50 dark:bg-gray-800 rounded-md p-4 space-y-2">
+                            <div class="bg-muted  rounded-md p-4 space-y-2">
                                 <div class="flex justify-between">
-                                    <span class="text-sm text-gray-500">"NAR Size:"</span>
+                                    <span class="text-sm text-muted-foreground">"NAR Size:"</span>
                                     <span class="font-mono text-sm">{format_bytes(info.nar_size)}</span>
                                 </div>
                                 <div class="flex justify-between">
-                                    <span class="text-sm text-gray-500">"Closure Size:"</span>
+                                    <span class="text-sm text-muted-foreground">"Closure Size:"</span>
                                     <span class="font-mono text-sm">{format_bytes(info.closure_size)}</span>
                                 </div>
                                 <div class="flex justify-between">
-                                    <span class="text-sm text-gray-500">"References:"</span>
+                                    <span class="text-sm text-muted-foreground">"References:"</span>
                                     <span class="font-mono text-sm">{info.references}</span>
                                 </div>
                             </div>
@@ -508,20 +506,20 @@ pub fn NixOperationsPage() -> impl IntoView {
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-2">
                                 <Show when=move || operation_running.get()>
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800900200">
                                         <span class="w-2 h-2 mr-1.5 bg-blue-500 rounded-full animate-pulse"></span>
                                         "Running"
                                     </span>
                                 </Show>
                             </div>
                             <button
-                                class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                class="text-sm text-muted-foreground hover:text-foreground  "
                                 on:click=clear_output
                             >
                                 "Clear"
                             </button>
                         </div>
-                        <div class="bg-gray-900 rounded-lg p-4 font-mono text-sm text-green-400 max-h-80 overflow-auto">
+                        <div class="bg-background rounded-lg p-4 font-mono text-sm text-green-400 max-h-80 overflow-auto">
                             <For
                                 each=move || operation_output.get()
                                 key=|l| l.clone()

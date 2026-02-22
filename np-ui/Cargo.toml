@@ -13,9 +13,9 @@ required-features = ["hydrate"]
 
 [dependencies]
 # Leptos framework
-leptos = "0.7"
-leptos_router = "0.7"
-leptos_meta = "0.7"
+leptos = "0.8"
+leptos_router = "0.8"
+leptos_meta = "0.8"
 
 # Serialization
 serde.workspace = true
@@ -47,12 +47,15 @@ web-sys = { version = "0.3", optional = true, features = [
 ] }
 
 # Server-side dependencies (ssr feature)
-leptos_axum = { version = "0.7", optional = true }
+leptos_axum = { version = "0.8", optional = true }
 axum = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }
 tower-http = { workspace = true, optional = true }
 np-core = { workspace = true, optional = true }
+strum.workspace = true
+leptos_ui.workspace = true
+tw_merge.workspace = true
 
 [features]
 default = []
@@ -76,3 +79,6 @@ ssr = [
     "dep:tower-http",
     "dep:np-core",
 ]
+
+[package.metadata.leptos]
+tailwind-input-file = "styles/main.css"

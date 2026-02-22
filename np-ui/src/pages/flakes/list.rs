@@ -13,12 +13,12 @@ pub fn FlakeListPage() -> impl IntoView {
     view! {
         <div class="space-y-6">
             <div class="flex items-center justify-between">
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                <h1 class="text-2xl font-bold text-foreground ">
                     "Flakes"
                 </h1>
                 <A
                     href="/flakes/add"
-                    attr:class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
+                    attr:class="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-md transition-colors"
                 >
                     "+ Register Flake"
                 </A>
@@ -28,16 +28,16 @@ pub fn FlakeListPage() -> impl IntoView {
                 view! {
                     <Card>
                         <div class="text-center py-12">
-                            <div class="text-gray-400 text-5xl mb-4">"*"</div>
-                            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                            <div class="text-muted-foreground text-5xl mb-4">"*"</div>
+                            <h3 class="text-lg font-medium text-foreground  mb-2">
                                 "No flakes registered"
                             </h3>
-                            <p class="text-gray-500 dark:text-gray-400 mb-4">
+                            <p class="text-muted-foreground  mb-4">
                                 "Register a flake to manage its inputs and deploy configurations."
                             </p>
                             <A
                                 href="/flakes/add"
-                                attr:class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
+                                attr:class="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-md transition-colors"
                             >
                                 "Register Your First Flake"
                             </A>
@@ -68,10 +68,10 @@ fn FlakeCard(
 
     view! {
         <A href=href attr:class="block">
-            <Card class="hover:border-indigo-500 transition-colors cursor-pointer".to_string()>
+            <Card class="hover:border-primary transition-colors cursor-pointer".to_string()>
                 <div class="space-y-3">
                     <div class="flex items-start justify-between">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                        <h3 class="text-lg font-medium text-foreground ">
                             {name}
                         </h3>
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -80,12 +80,12 @@ fn FlakeCard(
                     </div>
 
                     {description.map(|desc| view! {
-                        <p class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+                        <p class="text-sm text-muted-foreground  line-clamp-2">
                             {desc}
                         </p>
                     })}
 
-                    <div class="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                    <div class="flex items-center text-sm text-muted-foreground ">
                         <span class="font-mono truncate">{path}</span>
                     </div>
                 </div>

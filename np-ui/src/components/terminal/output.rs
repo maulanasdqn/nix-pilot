@@ -29,7 +29,7 @@ pub fn TerminalOutput(
     });
 
     let container_class = format!(
-        "bg-gray-900 text-gray-100 font-mono text-sm p-4 rounded-lg overflow-auto {}",
+        "bg-card text-foreground font-mono text-sm p-4 rounded-lg overflow-auto {}",
         max_height
     );
 
@@ -45,12 +45,12 @@ pub fn TerminalOutput(
                     let content_class = if line.stream == "stderr" {
                         "text-red-400"
                     } else {
-                        "text-gray-100"
+                        "text-foreground"
                     };
 
                     view! {
                         <div class=content_class>
-                            <span class="text-gray-500 mr-2 select-none">{line.timestamp}</span>
+                            <span class="text-muted-foreground mr-2 select-none">{line.timestamp}</span>
                             <span>{line.content}</span>
                         </div>
                     }

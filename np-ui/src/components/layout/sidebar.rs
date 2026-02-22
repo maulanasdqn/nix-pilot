@@ -1,6 +1,8 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
+use leptos_router::hooks::use_location;
 
+use crate::app::logout;
 use crate::components::icons::*;
 
 /// Navigation item in the sidebar
@@ -10,32 +12,112 @@ fn NavItem(
     #[prop(into)] label: String,
     icon: impl IntoView + 'static,
 ) -> impl IntoView {
+    let location = use_location();
+    let href_clone = href.clone();
+
+    let is_active = move || {
+        let path = location.pathname.get();
+        if href_clone == "/" {
+            path == "/"
+        } else {
+            path.starts_with(&href_clone)
+        }
+    };
+
     view! {
         <A
             href=href
-            attr:class="flex items-center px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            attr:class=move || {
+                let base = "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all";
+                if is_active() {
+                    format!("{} bg-accent text-accent-foreground", base)
+                } else {
+                    format!("{} text-muted-foreground hover:text-foreground hover:bg-accent/50", base)
+                }
+            }
         >
-            <span class="mr-3 w-5 h-5">{icon}</span>
+            <span class="flex-shrink-0">{icon}</span>
             <span>{label}</span>
         </A>
     }
 }
 
-/// Left sidebar navigation
+/// Section header in sidebar
+#[component]
+fn SectionHeader(#[prop(into)] label: String) -> impl IntoView {
+    view! {
+        <h4 class="mb-1 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            {label}
+        </h4>
+    }
+}
+
+/// Left sidebar navigation (shadcn style)
 #[component]
 pub fn Sidebar() -> impl IntoView {
     view! {
-        <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 min-h-screen">
-            <nav class="p-4 space-y-2">
-                <NavItem href="/" label="Dashboard" icon=view! { <IconDashboard size=IconSize::Md /> } />
-                <NavItem href="/machines" label="Machines" icon=view! { <IconServer size=IconSize::Md /> } />
-                <NavItem href="/install" label="Install NixOS" icon=view! { <IconInstall size=IconSize::Md /> } />
-                <NavItem href="/flakes" label="Flakes" icon=view! { <IconFlake size=IconSize::Md /> } />
-                <NavItem href="/deploy" label="Deploy" icon=view! { <IconDeploy size=IconSize::Md /> } />
-                <NavItem href="/secrets" label="Secrets" icon=view! { <IconShield size=IconSize::Md /> } />
-                <NavItem href="/nix" label="Nix Operations" icon=view! { <IconTerminal size=IconSize::Md /> } />
-                <NavItem href="/settings" label="Settings" icon=view! { <IconSettings size=IconSize::Md /> } />
+        <aside class="hidden md:flex w-64 flex-col border-r border-border bg-background">
+            // Logo/Brand
+            <div class="flex h-14 items-center border-b border-border px-4">
+                <A href="/" attr:class="flex items-center gap-2 font-semibold text-foreground">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                        <IconFlake size=IconSize::Sm />
+                    </div>
+                    <span>"Nix Pilot"</span>
+                </A>
+            </div>
+
+            // Navigation
+            <nav class="flex-1 overflow-auto p-4">
+                <div class="space-y-6">
+                    // Overview Section
+                    <div class="space-y-1">
+                        <SectionHeader label="Overview" />
+                        <NavItem href="/dashboard" label="Dashboard" icon=view! { <IconDashboard size=IconSize::Sm /> } />
+                        <NavItem href="/services" label="Services" icon=view! { <IconService size=IconSize::Sm /> } />
+                        <NavItem href="/flakes" label="Flakes" icon=view! { <IconFlake size=IconSize::Sm /> } />
+                    </div>
+
+                    // Operations Section
+                    <div class="space-y-1">
+                        <SectionHeader label="Operations" />
+                        <NavItem href="/rebuild" label="Rebuild" icon=view! { <IconDeploy size=IconSize::Sm /> } />
+                        <NavItem href="/nix" label="Nix Operations" icon=view! { <IconTerminal size=IconSize::Sm /> } />
+                    </div>
+
+                    // Security Section
+                    <div class="space-y-1">
+                        <SectionHeader label="Security" />
+                        <NavItem href="/secrets" label="Secrets" icon=view! { <IconShield size=IconSize::Sm /> } />
+                    </div>
+
+                    // System Section
+                    <div class="space-y-1">
+                        <SectionHeader label="System" />
+                        <NavItem href="/settings" label="Settings" icon=view! { <IconSettings size=IconSize::Sm /> } />
+                    </div>
+                </div>
             </nav>
+
+            // Footer
+            <div class="border-t border-border p-4 space-y-2">
+                <div class="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <IconStatusDot size=IconSize::Sm color="text-green-500".to_string() />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-foreground truncate">"System Ready"</p>
+                        <p class="text-xs text-muted-foreground">"All services online"</p>
+                    </div>
+                </div>
+                <button
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all"
+                    on:click=move |_| logout()
+                >
+                    <IconLogout size=IconSize::Sm />
+                    <span>"Logout"</span>
+                </button>
+            </div>
         </aside>
     }
 }

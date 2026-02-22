@@ -2,8 +2,9 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::JsCast;
+use leptos::wasm_bindgen::JsCast;
 
+use crate::api::check_response_status;
 use crate::components::common::Card;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -62,9 +63,8 @@ async fn fetch_machine(id: String) -> Result<MachineInfo, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("HTTP {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -96,11 +96,10 @@ async fn delete_machine(id: String) -> Result<(), String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if resp.ok() {
-        Ok(())
-    } else {
-        Err(format!("Delete failed: {}", resp.status()))
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
+
+    Ok(())
 }
 
 async fn test_machine_connection(id: String) -> Result<String, String> {
@@ -124,6 +123,13 @@ async fn test_machine_connection(id: String) -> Result<String, String> {
         .map_err(|_| "Fetch failed")?;
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
+
+    // Handle 401 - logout and redirect
+    if resp.status() == 401 {
+        crate::api::logout_and_redirect();
+        return Err("Session expired. Please login again.".to_string());
+    }
+
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
         .map_err(|_| "JSON parse failed")?;
@@ -226,11 +232,11 @@ pub fn MachineDetailPage() -> impl IntoView {
                 <div class="flex items-center space-x-4">
                     <A
                         href="/machines"
-                        attr:class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        attr:class="text-muted-foreground hover:text-foreground :text-gray-200"
                     >
                         {"\u{2190} Back"}
                     </A>
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    <h1 class="text-2xl font-bold text-foreground ">
                         "Machine Details"
                     </h1>
                 </div>
@@ -253,7 +259,7 @@ pub fn MachineDetailPage() -> impl IntoView {
             </div>
 
             {move || error.get().map(|e| view! {
-                <div class="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                <div class="p-3 bg-red-500/20 border border-red-500/30 text-red-700 rounded">
                     {e}
                 </div>
             })}
@@ -266,7 +272,7 @@ pub fn MachineDetailPage() -> impl IntoView {
 
             <Show when=move || loading.get()>
                 <div class="text-center py-12">
-                    <p class="text-gray-500">"Loading machine details..."</p>
+                    <p class="text-muted-foreground">"Loading machine details..."</p>
                 </div>
             </Show>
 
@@ -279,23 +285,23 @@ pub fn MachineDetailPage() -> impl IntoView {
                             <Card title="Connection".to_string()>
                                 <dl class="space-y-4">
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Name"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-medium">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Name"</dt>
+                                        <dd class="mt-1 text-sm text-foreground  font-medium">
                                             {m.name.clone()}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Status"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Status"</dt>
+                                        <dd class="mt-1 text-sm text-foreground ">
                                             <span class=move || {
                                                 let status = m.status.clone();
                                                 let base = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium";
                                                 if status == "online" || status == "connected" {
-                                                    format!("{} bg-green-100 text-green-800", base)
+                                                    format!("{} bg-green-500/20 text-green-400", base)
                                                 } else if status == "offline" || status == "disconnected" {
                                                     format!("{} bg-red-100 text-red-800", base)
                                                 } else {
-                                                    format!("{} bg-gray-100 text-gray-800", base)
+                                                    format!("{} bg-muted text-foreground", base)
                                                 }
                                             }>
                                                 {if m.status.is_empty() { "Unknown".to_string() } else { m.status.clone() }}
@@ -303,26 +309,26 @@ pub fn MachineDetailPage() -> impl IntoView {
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Host"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Host"</dt>
+                                        <dd class="mt-1 text-sm text-foreground  font-mono">
                                             {m.host.clone()}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Port"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Port"</dt>
+                                        <dd class="mt-1 text-sm text-foreground  font-mono">
                                             {m.port.to_string()}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Username"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Username"</dt>
+                                        <dd class="mt-1 text-sm text-foreground  font-mono">
                                             {m.username.clone()}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Auth Method"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Auth Method"</dt>
+                                        <dd class="mt-1 text-sm text-foreground ">
                                             {if m.auth_method.is_empty() { "SSH Agent".to_string() } else { m.auth_method.clone() }}
                                         </dd>
                                     </div>
@@ -333,14 +339,14 @@ pub fn MachineDetailPage() -> impl IntoView {
                             <Card title="System Info".to_string()>
                                 <dl class="space-y-4">
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"System"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"System"</dt>
+                                        <dd class="mt-1 text-sm text-foreground  font-mono">
                                             {m.system_info.clone().unwrap_or_else(|| "Not available - test connection first".to_string())}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Last Seen"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Last Seen"</dt>
+                                        <dd class="mt-1 text-sm text-foreground ">
                                             {m.last_seen.clone().unwrap_or_else(|| "Never".to_string())}
                                         </dd>
                                     </div>
@@ -352,7 +358,7 @@ pub fn MachineDetailPage() -> impl IntoView {
                                 <div class="flex flex-wrap gap-4">
                                     <A
                                         href=move || format!("/services/{}", machine_id())
-                                        attr:class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors"
+                                        attr:class="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium rounded-md transition-colors"
                                     >
                                         "View Services"
                                     </A>
@@ -374,7 +380,7 @@ pub fn MachineDetailPage() -> impl IntoView {
 
                         // Terminal connection info (shown conditionally below)
 
-                        <p class="text-sm text-gray-500">
+                        <p class="text-sm text-muted-foreground">
                             "Machine ID: " {machine_id}
                         </p>
                     }
@@ -383,7 +389,7 @@ pub fn MachineDetailPage() -> impl IntoView {
 
             <Show when=move || !loading.get() && machine.get().is_none() && error.get().is_none()>
                 <div class="text-center py-12">
-                    <p class="text-gray-500">"Machine not found"</p>
+                    <p class="text-muted-foreground">"Machine not found"</p>
                 </div>
             </Show>
 
@@ -395,15 +401,15 @@ pub fn MachineDetailPage() -> impl IntoView {
                     view! {
                         <Card title="Terminal Connection".to_string()>
                             <div class="space-y-4">
-                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                <p class="text-sm text-muted-foreground ">
                                     "Use the following command to connect to this machine via SSH:"
                                 </p>
-                                <div class="bg-gray-900 rounded-lg p-4">
+                                <div class="bg-background rounded-lg p-4">
                                     <code class="text-green-400 font-mono text-sm">
                                         {ssh_cmd}
                                     </code>
                                 </div>
-                                <p class="text-xs text-gray-400 dark:text-gray-500">
+                                <p class="text-xs text-muted-foreground ">
                                     "Web-based terminal coming soon in a future release."
                                 </p>
                             </div>

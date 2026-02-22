@@ -1,9 +1,10 @@
 use leptos::prelude::*;
+use leptos::wasm_bindgen::JsCast;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::JsCast;
 
+use crate::api::check_response_status;
 use crate::components::common::Card;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -14,7 +15,7 @@ struct LogsResponse {
     service: String,
 }
 
-async fn fetch_logs(machine_id: String, service: String, lines: u32) -> Result<Vec<String>, String> {
+async fn fetch_logs(service: &str, lines: u32) -> Result<Vec<String>, String> {
     let window = web_sys::window().ok_or("No window")?;
     let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
     let token = storage.get_item("np_token").map_err(|_| "No token")?;
@@ -22,7 +23,7 @@ async fn fetch_logs(machine_id: String, service: String, lines: u32) -> Result<V
     let opts = web_sys::RequestInit::new();
     opts.set_method("GET");
 
-    let url = format!("/api/machines/{}/services/{}/logs?lines={}", machine_id, service, lines);
+    let url = format!("/api/system/services/{}/logs?lines={}", service, lines);
     let request = web_sys::Request::new_with_str_and_init(&url, &opts)
         .map_err(|_| "Failed to create request")?;
 
@@ -36,9 +37,8 @@ async fn fetch_logs(machine_id: String, service: String, lines: u32) -> Result<V
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("HTTP {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -50,11 +50,10 @@ async fn fetch_logs(machine_id: String, service: String, lines: u32) -> Result<V
     Ok(response.logs)
 }
 
-/// Service logs page with live streaming
+/// Service logs page - local system
 #[component]
 pub fn ServiceLogsPage() -> impl IntoView {
     let params = use_params_map();
-    let machine_id = move || params.read().get("machine_id").unwrap_or_default();
     let service_name = move || params.read().get("service").unwrap_or_default();
 
     // Log state
@@ -69,11 +68,10 @@ pub fn ServiceLogsPage() -> impl IntoView {
     let (lines_to_fetch, set_lines_to_fetch) = signal(100u32);
 
     // Fetch logs on mount
-    let mid = machine_id();
     let svc = service_name();
-    if !mid.is_empty() && !svc.is_empty() {
+    if !svc.is_empty() {
         leptos::task::spawn_local(async move {
-            match fetch_logs(mid, svc, 100).await {
+            match fetch_logs(&svc, 100).await {
                 Ok(l) => {
                     set_logs.set(l);
                     set_loading.set(false);
@@ -88,16 +86,15 @@ pub fn ServiceLogsPage() -> impl IntoView {
 
     // Refresh logs function
     let refresh_logs = move |_| {
-        let mid = machine_id();
         let svc = service_name();
         let lines = lines_to_fetch.get();
-        if mid.is_empty() || svc.is_empty() {
+        if svc.is_empty() {
             return;
         }
         set_loading.set(true);
         set_error.set(None);
         leptos::task::spawn_local(async move {
-            match fetch_logs(mid, svc, lines).await {
+            match fetch_logs(&svc, lines).await {
                 Ok(l) => {
                     set_logs.set(l);
                     set_loading.set(false);
@@ -175,7 +172,7 @@ pub fn ServiceLogsPage() -> impl IntoView {
         } else if line.contains("warn") || line.contains("Warn") || line.contains("WARNING") {
             "text-yellow-400"
         } else if line.contains("debug") || line.contains("Debug") || line.contains("DEBUG") {
-            "text-gray-500"
+            "text-muted-foreground"
         } else {
             "text-green-400"
         }
@@ -187,16 +184,16 @@ pub fn ServiceLogsPage() -> impl IntoView {
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-4">
                     <A
-                        href=move || format!("/services/{}/{}", machine_id(), service_name())
-                        attr:class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        href=move || format!("/services/{}", service_name())
+                        attr:class="text-muted-foreground hover:text-foreground"
                     >
                         {"\u{2190} Back to Service"}
                     </A>
                     <div>
-                        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                        <h1 class="text-2xl font-bold text-foreground">
                             "Service Logs"
                         </h1>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 font-mono">
+                        <p class="text-sm text-muted-foreground font-mono">
                             {service_name}
                         </p>
                     </div>
@@ -204,7 +201,7 @@ pub fn ServiceLogsPage() -> impl IntoView {
                 <div class="flex items-center space-x-3">
                     // Streaming indicator
                     <Show when=move || is_streaming.get()>
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-500/20 text-green-400">
                             <span class="w-2 h-2 mr-2 bg-green-500 rounded-full animate-pulse"></span>
                             "Live"
                         </span>
@@ -213,7 +210,7 @@ pub fn ServiceLogsPage() -> impl IntoView {
             </div>
 
             {move || error.get().map(|e| view! {
-                <div class="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                <div class="p-3 bg-red-500/20 border border-red-500/30 text-red-400 rounded">
                     {e}
                 </div>
             })}
@@ -226,23 +223,23 @@ pub fn ServiceLogsPage() -> impl IntoView {
                         <input
                             type="text"
                             placeholder="Filter logs..."
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
-                            prop:value=filter
+                            class="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground focus:ring-ring focus:border-primary font-mono text-sm"
                             on:input=move |ev| set_filter.set(event_target_value(&ev))
+                            prop:value=move || filter.get()
                         />
                     </div>
 
                     // Lines selector
                     <div class="flex items-center space-x-2">
-                        <label class="text-sm text-gray-500 dark:text-gray-400">"Lines:"</label>
+                        <label class="text-sm text-muted-foreground">"Lines:"</label>
                         <select
-                            class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
-                            prop:value=move || lines_to_fetch.get().to_string()
+                            class="px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm"
                             on:change=move |ev| {
                                 if let Ok(n) = event_target_value(&ev).parse() {
                                     set_lines_to_fetch.set(n);
                                 }
                             }
+                            prop:value=move || lines_to_fetch.get().to_string()
                         >
                             <option value="50">"50"</option>
                             <option value="100">"100"</option>
@@ -256,17 +253,17 @@ pub fn ServiceLogsPage() -> impl IntoView {
                     <label class="flex items-center space-x-2 cursor-pointer">
                         <input
                             type="checkbox"
-                            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            prop:checked=auto_scroll
+                            class="rounded border-border text-primary focus:ring-ring"
                             on:change=move |ev| set_auto_scroll.set(event_target_checked(&ev))
+                            prop:checked=move || auto_scroll.get()
                         />
-                        <span class="text-sm text-gray-700 dark:text-gray-300">"Auto-scroll"</span>
+                        <span class="text-sm text-foreground">"Auto-scroll"</span>
                     </label>
 
                     // Action buttons
                     <div class="flex items-center space-x-2">
                         <button
-                            class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50"
+                            class="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium rounded-md transition-colors disabled:opacity-50"
                             on:click=refresh_logs
                             disabled=move || loading.get()
                         >
@@ -276,9 +273,9 @@ pub fn ServiceLogsPage() -> impl IntoView {
                             class=move || format!(
                                 "inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors {}",
                                 if is_streaming.get() {
-                                    "bg-red-600 hover:bg-red-700 text-white"
+                                    "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 } else {
-                                    "bg-green-600 hover:bg-green-700 text-white"
+                                    "bg-primary text-primary-foreground hover:bg-primary/90"
                                 }
                             )
                             on:click=toggle_streaming
@@ -292,7 +289,7 @@ pub fn ServiceLogsPage() -> impl IntoView {
                             "Clear"
                         </button>
                         <button
-                            class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
+                            class="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-md transition-colors"
                             on:click=download_logs
                         >
                             "Download"
@@ -302,10 +299,10 @@ pub fn ServiceLogsPage() -> impl IntoView {
             </Card>
 
             // Log viewer
-            <div class="bg-gray-900 rounded-lg shadow-lg overflow-hidden">
+            <div class="bg-background rounded-lg shadow-lg overflow-hidden border border-border">
                 // Log header
-                <div class="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
-                    <span class="text-sm text-gray-400">
+                <div class="flex items-center justify-between px-4 py-2 bg-card border-b border-border">
+                    <span class="text-sm text-muted-foreground">
                         {move || format!("{} lines", filtered_logs().len())}
                         {move || {
                             let total = logs.get().len();
@@ -317,7 +314,7 @@ pub fn ServiceLogsPage() -> impl IntoView {
                             }
                         }}
                     </span>
-                    <span class="text-sm text-gray-500">
+                    <span class="text-sm text-muted-foreground font-mono">
                         "journalctl -u " {service_name} " -n " {move || lines_to_fetch.get()}
                     </span>
                 </div>
@@ -328,7 +325,7 @@ pub fn ServiceLogsPage() -> impl IntoView {
                     style="max-height: 600px; min-height: 400px;"
                 >
                     <Show when=move || loading.get()>
-                        <p class="text-gray-500 text-center py-8">
+                        <p class="text-muted-foreground text-center py-8">
                             "Loading logs..."
                         </p>
                     </Show>
@@ -337,7 +334,7 @@ pub fn ServiceLogsPage() -> impl IntoView {
                         <Show
                             when=move || !filtered_logs().is_empty()
                             fallback=|| view! {
-                                <p class="text-gray-500 text-center py-8">
+                                <p class="text-muted-foreground text-center py-8">
                                     "No log entries to display. Click Refresh to fetch logs."
                                 </p>
                             }
@@ -350,7 +347,7 @@ pub fn ServiceLogsPage() -> impl IntoView {
                                 {
                                     let log_class = get_log_class(&log);
                                     view! {
-                                        <p class=format!("whitespace-pre-wrap break-all py-0.5 hover:bg-gray-800 {}", log_class)>
+                                        <p class=format!("whitespace-pre-wrap break-all py-0.5 hover:bg-card {}", log_class)>
                                             {log}
                                         </p>
                                     }
@@ -362,12 +359,12 @@ pub fn ServiceLogsPage() -> impl IntoView {
             </div>
 
             // Footer info
-            <div class="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                <span>
-                    "Machine: " {machine_id}
-                </span>
+            <div class="flex items-center justify-between text-sm text-muted-foreground">
                 <span>
                     "Service: " {service_name}
+                </span>
+                <span>
+                    {move || format!("{} log entries loaded", logs.get().len())}
                 </span>
             </div>
         </div>

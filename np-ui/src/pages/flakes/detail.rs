@@ -2,8 +2,9 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::JsCast;
+use leptos::wasm_bindgen::JsCast;
 
+use crate::api::check_response_status;
 use crate::components::common::Card;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -71,9 +72,8 @@ async fn fetch_flake(id: String) -> Result<FlakeInfo, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("HTTP {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -104,6 +104,12 @@ async fn fetch_outputs(id: String) -> Result<FlakeOutputs, String> {
         .map_err(|_| "Fetch failed")?;
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
+
+    // Handle 401 - logout and redirect
+    if resp.status() == 401 {
+        crate::api::logout_and_redirect();
+        return Err("Session expired. Please login again.".to_string());
+    }
 
     if !resp.ok() {
         return Ok(FlakeOutputs::default());
@@ -138,9 +144,8 @@ async fn refresh_metadata(id: String) -> Result<FlakeInfo, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("Refresh failed: {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -172,11 +177,10 @@ async fn unregister_flake(id: String) -> Result<(), String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if resp.ok() {
-        Ok(())
-    } else {
-        Err(format!("Unregister failed: {}", resp.status()))
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
+
+    Ok(())
 }
 
 async fn update_lock(id: String, input: Option<String>) -> Result<String, String> {
@@ -205,9 +209,8 @@ async fn update_lock(id: String, input: Option<String>) -> Result<String, String
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("Update failed: {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -371,11 +374,11 @@ pub fn FlakeDetailPage() -> impl IntoView {
                 <div class="flex items-center space-x-4">
                     <A
                         href="/flakes"
-                        attr:class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        attr:class="text-muted-foreground hover:text-foreground :text-gray-200"
                     >
                         {"\u{2190} Back"}
                     </A>
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    <h1 class="text-2xl font-bold text-foreground ">
                         "Flake Details"
                     </h1>
                 </div>
@@ -405,7 +408,7 @@ pub fn FlakeDetailPage() -> impl IntoView {
             </div>
 
             {move || error.get().map(|e| view! {
-                <div class="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                <div class="p-3 bg-red-500/20 border border-red-500/30 text-red-700 rounded">
                     {e}
                 </div>
             })}
@@ -418,7 +421,7 @@ pub fn FlakeDetailPage() -> impl IntoView {
 
             <Show when=move || loading.get()>
                 <div class="text-center py-12">
-                    <p class="text-gray-500">"Loading flake details..."</p>
+                    <p class="text-muted-foreground">"Loading flake details..."</p>
                 </div>
             </Show>
 
@@ -433,26 +436,26 @@ pub fn FlakeDetailPage() -> impl IntoView {
                             <Card title="Information".to_string()>
                                 <dl class="space-y-4">
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Name"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Name"</dt>
+                                        <dd class="mt-1 text-sm text-foreground ">
                                             {f.name.clone()}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Path"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Path"</dt>
+                                        <dd class="mt-1 text-sm text-foreground  font-mono">
                                             {f.path.clone()}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Description"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Description"</dt>
+                                        <dd class="mt-1 text-sm text-foreground ">
                                             {f.description.clone().unwrap_or_else(|| "No description".to_string())}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Last Updated"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Last Updated"</dt>
+                                        <dd class="mt-1 text-sm text-foreground ">
                                             {f.last_updated.clone().unwrap_or_else(|| "Unknown".to_string())}
                                         </dd>
                                     </div>
@@ -464,28 +467,28 @@ pub fn FlakeDetailPage() -> impl IntoView {
                                 <div class="space-y-4">
                                     {if inputs.is_empty() {
                                         view! {
-                                            <p class="text-gray-500 dark:text-gray-400">"No inputs found"</p>
+                                            <p class="text-muted-foreground ">"No inputs found"</p>
                                         }.into_any()
                                     } else {
                                         inputs.into_iter().map(|input| {
                                             let name = input.name.clone();
                                             let name_for_update = name.clone();
                                             view! {
-                                                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                                <div class="flex items-center justify-between p-3 bg-muted  rounded-lg">
                                                     <div class="flex-1 min-w-0">
                                                         <div class="flex items-center space-x-2">
-                                                            <span class="font-medium text-gray-900 dark:text-gray-100">{name.clone()}</span>
+                                                            <span class="font-medium text-foreground ">{name.clone()}</span>
                                                         </div>
-                                                        <p class="text-sm text-gray-500 dark:text-gray-400 font-mono truncate">
+                                                        <p class="text-sm text-muted-foreground  font-mono truncate">
                                                             {input.url.clone()}
                                                         </p>
-                                                        <p class="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                                                        <p class="text-xs text-muted-foreground  font-mono">
                                                             "Locked: " {input.locked_rev.clone().unwrap_or_else(|| "N/A".to_string())}
                                                         </p>
                                                     </div>
                                                     <div class="flex space-x-2 ml-4">
                                                         <button
-                                                            class="px-3 py-1 text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400"
+                                                            class="px-3 py-1 text-sm font-medium text-primary hover:text-primary/80"
                                                             on:click=move |_| {
                                                                 set_selected_input.set(Some(name_for_update.clone()));
                                                                 set_update_output.set(vec![format!("Ready to update {}...", name_for_update)]);
@@ -541,7 +544,7 @@ pub fn FlakeDetailPage() -> impl IntoView {
                                 </A>
                                 <A
                                     href=move || format!("/install?flake={}", flake_id())
-                                    attr:class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors"
+                                    attr:class="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium rounded-md transition-colors"
                                 >
                                     "Install to Machine"
                                 </A>
@@ -554,7 +557,7 @@ pub fn FlakeDetailPage() -> impl IntoView {
                             </div>
                         </Card>
 
-                        <p class="text-sm text-gray-500">
+                        <p class="text-sm text-muted-foreground">
                             "Flake ID: " {flake_id}
                         </p>
                     }
@@ -571,8 +574,8 @@ pub fn FlakeDetailPage() -> impl IntoView {
                     />
 
                     // Modal content
-                    <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
-                        <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
+                    <div class="relative bg-background rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
+                        <h2 class="text-lg font-bold text-foreground  mb-4">
                             {move || match selected_input.get() {
                                 Some(name) => format!("Update '{}'", name),
                                 None => "Update All Inputs".to_string(),
@@ -580,12 +583,12 @@ pub fn FlakeDetailPage() -> impl IntoView {
                         </h2>
 
                         <div class="space-y-4">
-                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                            <p class="text-sm text-muted-foreground ">
                                 "This will run 'nix flake update' to update the lock file."
                             </p>
 
                             // Progress area
-                            <div class="bg-gray-900 rounded-lg p-4 font-mono text-sm text-green-400 h-32 overflow-auto">
+                            <div class="bg-background rounded-lg p-4 font-mono text-sm text-green-400 h-32 overflow-auto">
                                 {move || update_output.get().into_iter().map(|line| view! {
                                     <div>{line}</div>
                                 }).collect::<Vec<_>>()}
@@ -594,13 +597,13 @@ pub fn FlakeDetailPage() -> impl IntoView {
 
                         <div class="flex justify-end space-x-3 mt-6">
                             <button
-                                class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                                class="px-4 py-2 text-sm font-medium text-foreground  hover:bg-muted  rounded-md"
                                 on:click=close_modal
                             >
                                 "Close"
                             </button>
                             <button
-                                class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50"
+                                class="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md disabled:opacity-50"
                                 on:click=do_update
                                 disabled=move || updating.get()
                             >
@@ -621,11 +624,11 @@ fn OutputCategory(
     items: Vec<String>,
 ) -> impl IntoView {
     view! {
-        <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <h4 class="font-medium text-gray-900 dark:text-gray-100 mb-2">{name}</h4>
-            <ul class="text-sm text-gray-500 dark:text-gray-400 space-y-1">
+        <div class="p-4 bg-muted  rounded-lg">
+            <h4 class="font-medium text-foreground  mb-2">{name}</h4>
+            <ul class="text-sm text-muted-foreground  space-y-1">
                 {if items.is_empty() {
-                    view! { <li class="text-gray-400 italic">"None"</li> }.into_any()
+                    view! { <li class="text-muted-foreground italic">"None"</li> }.into_any()
                 } else {
                     items.into_iter().map(|item| view! {
                         <li class="font-mono">{item}</li>

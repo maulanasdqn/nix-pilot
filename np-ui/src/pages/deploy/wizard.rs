@@ -69,12 +69,12 @@ pub fn DeployWizardPage() -> impl IntoView {
     view! {
         <div class="space-y-6">
             <div class="flex items-center justify-between">
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                <h1 class="text-2xl font-bold text-foreground ">
                     "Deploy Configuration"
                 </h1>
                 <A
                     href="/"
-                    attr:class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    attr:class="text-muted-foreground hover:text-foreground :text-gray-200"
                 >
                     "Cancel"
                 </A>
@@ -82,8 +82,8 @@ pub fn DeployWizardPage() -> impl IntoView {
 
             // Error display
             <Show when=move || deploy_error.get().is_some()>
-                <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
-                    <p class="text-sm text-red-600 dark:text-red-400">
+                <div class="bg-red-50900/20 border border-red-200800 rounded-md p-4">
+                    <p class="text-sm text-red-600400">
                         {move || deploy_error.get().unwrap_or_default()}
                     </p>
                 </div>
@@ -94,39 +94,39 @@ pub fn DeployWizardPage() -> impl IntoView {
                 <Card title="Target Machine".to_string()>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <label class="block text-sm font-medium text-foreground ">
                                 "Host"
                             </label>
                             <input
                                 type="text"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
+                                class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                 placeholder="192.168.1.100"
-                                prop:value=target_host
                                 on:input=move |ev| set_target_host.set(event_target_value(&ev))
+                                prop:value=move || target_host.get()
                             />
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <label class="block text-sm font-medium text-foreground ">
                                     "Port"
                                 </label>
                                 <input
                                     type="number"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
-                                    prop:value=target_port
+                                    class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                     on:input=move |ev| set_target_port.set(event_target_value(&ev))
+                                    prop:value=move || target_port.get()
                                 />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <label class="block text-sm font-medium text-foreground ">
                                     "Username"
                                 </label>
                                 <input
                                     type="text"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
-                                    prop:value=target_user
+                                    class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                     on:input=move |ev| set_target_user.set(event_target_value(&ev))
+                                    prop:value=move || target_user.get()
                                 />
                             </div>
                         </div>
@@ -137,35 +137,35 @@ pub fn DeployWizardPage() -> impl IntoView {
                 <Card title="NixOS Configuration".to_string()>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <label class="block text-sm font-medium text-foreground ">
                                 "Flake Reference"
                             </label>
                             <input
                                 type="text"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm font-mono"
+                                class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono"
                                 placeholder="github:user/repo or /path/to/flake"
-                                prop:value=flake_ref
                                 on:input=move |ev| set_flake_ref.set(event_target_value(&ev))
+                                prop:value=move || flake_ref.get()
                             />
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <label class="block text-sm font-medium text-foreground ">
                                 "Configuration Name"
                             </label>
                             <input
                                 type="text"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm font-mono"
+                                class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono"
                                 placeholder="myhost"
-                                prop:value=configuration
                                 on:input=move |ev| set_configuration.set(event_target_value(&ev))
+                                prop:value=move || configuration.get()
                             />
                         </div>
 
                         // Preview
-                        <div class="bg-gray-50 dark:bg-gray-800 rounded-md p-3">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">"Full reference:"</p>
-                            <p class="font-mono text-sm text-gray-700 dark:text-gray-300">
+                        <div class="bg-muted  rounded-md p-3">
+                            <p class="text-xs text-muted-foreground  mb-1">"Full reference:"</p>
+                            <p class="font-mono text-sm text-foreground ">
                                 {move || {
                                     let f = flake_ref.get();
                                     let c = configuration.get();
@@ -186,7 +186,7 @@ pub fn DeployWizardPage() -> impl IntoView {
                 <div class="space-y-6">
                     // Action selection
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        <label class="block text-sm font-medium text-foreground  mb-3">
                             "Deployment Action"
                         </label>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -223,45 +223,45 @@ pub fn DeployWizardPage() -> impl IntoView {
                         <label class="flex items-center space-x-3">
                             <input
                                 type="checkbox"
-                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                prop:checked=build_on_target
+                                class="rounded border-border text-primary focus:ring-ring"
                                 on:change=move |ev| set_build_on_target.set(event_target_checked(&ev))
+                                prop:checked=move || build_on_target.get()
                             />
                             <div>
-                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <span class="text-sm font-medium text-foreground ">
                                     "Build on target"
                                 </span>
-                                <p class="text-xs text-gray-500">"Build directly on the remote machine"</p>
+                                <p class="text-xs text-muted-foreground">"Build directly on the remote machine"</p>
                             </div>
                         </label>
 
                         <label class="flex items-center space-x-3">
                             <input
                                 type="checkbox"
-                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                prop:checked=use_substitutes
+                                class="rounded border-border text-primary focus:ring-ring"
                                 on:change=move |ev| set_use_substitutes.set(event_target_checked(&ev))
+                                prop:checked=move || use_substitutes.get()
                             />
                             <div>
-                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <span class="text-sm font-medium text-foreground ">
                                     "Use substitutes"
                                 </span>
-                                <p class="text-xs text-gray-500">"Download from binary caches"</p>
+                                <p class="text-xs text-muted-foreground">"Download from binary caches"</p>
                             </div>
                         </label>
 
                         <label class="flex items-center space-x-3">
                             <input
                                 type="checkbox"
-                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                prop:checked=rollback_on_failure
+                                class="rounded border-border text-primary focus:ring-ring"
                                 on:change=move |ev| set_rollback_on_failure.set(event_target_checked(&ev))
+                                prop:checked=move || rollback_on_failure.get()
                             />
                             <div>
-                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <span class="text-sm font-medium text-foreground ">
                                     "Auto-rollback"
                                 </span>
-                                <p class="text-xs text-gray-500">"Rollback if activation fails"</p>
+                                <p class="text-xs text-muted-foreground">"Rollback if activation fails"</p>
                             </div>
                         </label>
                     </div>
@@ -270,8 +270,8 @@ pub fn DeployWizardPage() -> impl IntoView {
 
             // Command Preview
             <Card title="Command Preview".to_string()>
-                <div class="bg-gray-900 rounded-lg p-4 font-mono text-sm text-green-400">
-                    <span class="text-gray-500">"$ "</span>
+                <div class="bg-background rounded-lg p-4 font-mono text-sm text-green-400">
+                    <span class="text-muted-foreground">"$ "</span>
                     <span>"nixos-rebuild "</span>
                     <span class="text-yellow-400">{move || action.get().as_str()}</span>
                     <span>" --flake "</span>
@@ -304,12 +304,12 @@ pub fn DeployWizardPage() -> impl IntoView {
             <div class="flex justify-end space-x-4">
                 <A
                     href="/"
-                    attr:class="px-6 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                    attr:class="px-6 py-3 text-sm font-medium text-foreground  hover:bg-muted  rounded-md"
                 >
                     "Cancel"
                 </A>
                 <button
-                    class="px-6 py-3 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="px-6 py-3 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled=move || !can_deploy()
                     on:click=start_deploy
                 >
@@ -339,17 +339,17 @@ fn ActionOption(
             class=move || format!(
                 "p-3 rounded-lg border-2 text-left transition-colors {}",
                 if is_selected() {
-                    "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20"
+                    "border-primary bg-muted "
                 } else {
-                    "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                    "border-border hover:border-border:border-gray-600"
                 }
             )
             on:click=move |_| set_action.set(action)
         >
-            <div class="font-medium text-gray-900 dark:text-gray-100">
+            <div class="font-medium text-foreground ">
                 {action.as_str()}
             </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <div class="text-xs text-muted-foreground  mt-1">
                 {action.description()}
             </div>
         </button>
@@ -361,7 +361,7 @@ fn ActionOption(
 pub fn DeployProgressPage() -> impl IntoView {
     view! {
         <div class="space-y-6">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <h1 class="text-2xl font-bold text-foreground ">
                 "Deployment in Progress"
             </h1>
 
@@ -369,29 +369,29 @@ pub fn DeployProgressPage() -> impl IntoView {
                 <div class="space-y-6">
                     // Progress indicator
                     <div class="text-center">
-                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900 mb-4">
-                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"/>
+                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10  mb-4">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"/>
                         </div>
-                        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                        <h2 class="text-lg font-medium text-foreground ">
                             "Building configuration..."
                         </h2>
                     </div>
 
                     // Progress bar
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                        <div class="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" style="width: 30%"/>
+                    <div class="w-full bg-muted  rounded-full h-2.5">
+                        <div class="bg-primary h-2.5 rounded-full transition-all duration-500" style="width: 30%"/>
                     </div>
 
                     // Phase info
-                    <div class="flex justify-between text-sm text-gray-500">
+                    <div class="flex justify-between text-sm text-muted-foreground">
                         <span>"Phase: Building"</span>
                         <span>"30%"</span>
                     </div>
 
                     // Terminal output
-                    <div class="bg-gray-900 rounded-lg p-4 font-mono text-sm text-green-400 h-64 overflow-auto">
+                    <div class="bg-background rounded-lg p-4 font-mono text-sm text-green-400 h-64 overflow-auto">
                         <p>"$ nixos-rebuild switch --flake .#myhost --target-host root@server"</p>
-                        <p class="text-gray-400">"building '/nix/store/xxx-nixos-system.drv'..."</p>
+                        <p class="text-muted-foreground">"building '/nix/store/xxx-nixos-system.drv'..."</p>
                         <p class="animate-pulse">"_"</p>
                     </div>
                 </div>
