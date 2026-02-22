@@ -43,9 +43,9 @@
     --success-foreground: 143 76% 97%;
 
     /* Border - subtle dark gray */
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 0 0% 40%;
 
     /* Radius */
     --radius: 0.5rem;
@@ -298,4 +298,25 @@ pre, code {
 body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+}
+
+/* Global border color - ensure all borders are gray, not white */
+*,
+*::before,
+*::after {
+    border-color: hsl(var(--border)) !important;
+}
+
+/* Override Tailwind's default border color */
+.border {
+    border-color: hsl(var(--border)) !important;
+}
+
+[class*="border-"] {
+    --tw-border-opacity: 1;
+}
+
+/* Ensure border-border uses our variable */
+.border-border {
+    border-color: hsl(var(--border)) !important;
 }

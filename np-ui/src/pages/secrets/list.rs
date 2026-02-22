@@ -30,7 +30,7 @@ async fn fetch_secrets() -> Result<Vec<SecretSummary>, String> {
     let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
     let token = storage.get_item("np_token").map_err(|_| "No token")?;
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("GET");
 
     let request = web_sys::Request::new_with_str_and_init("/api/secrets", &opts)

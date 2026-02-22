@@ -306,7 +306,8 @@ impl Default for DeployExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ssh::{SshAuthMethod, SshCredentials, SshTarget};
+    use crate::deploy::DeployAction;
+    use crate::ssh::{SshCredentials, SshTarget};
 
     #[test]
     fn test_build_args() {
@@ -316,10 +317,7 @@ mod tests {
             target: SshTarget {
                 host: "192.168.1.100".to_string(),
                 port: 22,
-                credentials: SshCredentials {
-                    username: "root".to_string(),
-                    auth_method: SshAuthMethod::Agent,
-                },
+                credentials: SshCredentials::with_agent("root"),
             },
             flake_ref: ".#nixosConfigurations.myhost".to_string(),
             action: DeployAction::Switch,

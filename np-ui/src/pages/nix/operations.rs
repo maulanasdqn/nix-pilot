@@ -1,9 +1,28 @@
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use leptos::wasm_bindgen::JsCast;
+use wasm_bindgen::closure::Closure;
 
 use crate::api::check_response_status;
 use crate::components::common::Card;
+
+/// Output line from streaming command
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct OutputLine {
+    content: String,
+    #[serde(default)]
+    is_stderr: bool,
+}
+
+/// WebSocket message types
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data")]
+enum WsMessage {
+    Output(OutputLine),
+    Started { command: String },
+    Completed { exit_code: i32 },
+    Error { message: String },
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct SearchResult {
@@ -45,7 +64,7 @@ async fn fetch_store_info() -> Result<StoreInfo, String> {
     let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
     let token = storage.get_item("np_token").map_err(|_| "No token")?;
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("GET");
 
     let request = web_sys::Request::new_with_str_and_init("/api/nix/store/info", &opts)
@@ -79,7 +98,7 @@ async fn search_packages(query: String) -> Result<Vec<SearchResult>, String> {
 
     let body = serde_json::json!({ "query": query });
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("POST");
     opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
 
@@ -117,7 +136,7 @@ async fn get_path_info(path: String) -> Result<PathInfo, String> {
 
     let body = serde_json::json!({ "path": path });
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("POST");
     opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
 
@@ -146,6 +165,19 @@ async fn get_path_info(path: String) -> Result<PathInfo, String> {
         .map_err(|e| format!("Deserialize failed: {:?}", e))
 }
 
+/// Build WebSocket URL with auth token
+fn build_ws_url(path: &str) -> String {
+    let window = web_sys::window().unwrap();
+    let storage = window.local_storage().ok().flatten();
+    let token = storage.and_then(|s| s.get_item("np_token").ok().flatten()).unwrap_or_default();
+
+    let location = window.location();
+    let protocol = location.protocol().unwrap_or_else(|_| "http:".to_string());
+    let ws_protocol = if protocol == "https:" { "wss:" } else { "ws:" };
+    let host = location.host().unwrap_or_else(|_| "localhost:8080".to_string());
+    format!("{}//{}/api{}?token={}", ws_protocol, host, path, token)
+}
+
 /// Nix operations page
 #[component]
 pub fn NixOperationsPage() -> impl IntoView {
@@ -164,7 +196,7 @@ pub fn NixOperationsPage() -> impl IntoView {
     let (getting_path_info, set_getting_path_info) = signal(false);
 
     // Operation state
-    let (active_operation, set_active_operation) = signal(Option::<&'static str>::None);
+    let (active_operation, set_active_operation) = signal(Option::<String>::None);
     let (operation_output, set_operation_output) = signal(Vec::<String>::new());
     let (operation_running, set_operation_running) = signal(false);
 
@@ -232,15 +264,143 @@ pub fn NixOperationsPage() -> impl IntoView {
         });
     };
 
-    let start_operation = move |op: &'static str| {
-        set_active_operation.set(Some(op));
-        set_operation_output.set(vec![format!("Starting {}...", op)]);
+    // Start garbage collection via WebSocket
+    let start_gc = move |_| {
+        let older_than = gc_older_than.get();
+        set_active_operation.set(Some("Garbage Collection".to_string()));
+        set_operation_output.set(vec![]);
         set_operation_running.set(true);
-        set_operation_output.update(|lines| {
-            lines.push("Note: This operation requires WebSocket connection.".to_string());
-            lines.push("Please use the nix-pilot CLI for full streaming support.".to_string());
-        });
-        set_operation_running.set(false);
+
+        let ws_url = build_ws_url("/ws/nix/gc");
+        let ws = match web_sys::WebSocket::new(&ws_url) {
+            Ok(ws) => ws,
+            Err(_) => {
+                set_operation_output.update(|lines| {
+                    lines.push("Error: Failed to create WebSocket connection".to_string());
+                });
+                set_operation_running.set(false);
+                return;
+            }
+        };
+
+        // Clone for onopen closure
+        let ws_clone = ws.clone();
+        let older_than_clone = older_than.clone();
+
+        // On open: send the request
+        let onopen = Closure::wrap(Box::new(move |_: web_sys::Event| {
+            let request = serde_json::json!({
+                "delete_older_than": if older_than_clone.is_empty() { None } else { Some(&older_than_clone) }
+            });
+            let msg = serde_json::to_string(&request).unwrap_or_default();
+            let _ = ws_clone.send_with_str(&msg);
+        }) as Box<dyn FnMut(web_sys::Event)>);
+        ws.set_onopen(Some(onopen.as_ref().unchecked_ref()));
+        onopen.forget();
+
+        setup_ws_handlers(ws, set_operation_output, set_operation_running);
+    };
+
+    // Start store optimise via WebSocket
+    let start_optimise = move |_| {
+        set_active_operation.set(Some("Store Optimise".to_string()));
+        set_operation_output.set(vec![]);
+        set_operation_running.set(true);
+
+        let ws_url = build_ws_url("/ws/nix/store/optimise");
+        let ws = match web_sys::WebSocket::new(&ws_url) {
+            Ok(ws) => ws,
+            Err(_) => {
+                set_operation_output.update(|lines| {
+                    lines.push("Error: Failed to create WebSocket connection".to_string());
+                });
+                set_operation_running.set(false);
+                return;
+            }
+        };
+
+        // Clone for onopen closure
+        let ws_clone = ws.clone();
+
+        // On open: send empty request to start
+        let onopen = Closure::wrap(Box::new(move |_: web_sys::Event| {
+            let _ = ws_clone.send_with_str("{}");
+        }) as Box<dyn FnMut(web_sys::Event)>);
+        ws.set_onopen(Some(onopen.as_ref().unchecked_ref()));
+        onopen.forget();
+
+        setup_ws_handlers(ws, set_operation_output, set_operation_running);
+    };
+
+    // Start store verify via WebSocket
+    let start_verify = move |_| {
+        set_active_operation.set(Some("Store Verify".to_string()));
+        set_operation_output.set(vec![]);
+        set_operation_running.set(true);
+
+        let ws_url = build_ws_url("/ws/nix/store/verify");
+        let ws = match web_sys::WebSocket::new(&ws_url) {
+            Ok(ws) => ws,
+            Err(_) => {
+                set_operation_output.update(|lines| {
+                    lines.push("Error: Failed to create WebSocket connection".to_string());
+                });
+                set_operation_running.set(false);
+                return;
+            }
+        };
+
+        // Clone for onopen closure
+        let ws_clone = ws.clone();
+
+        // On open: send empty request to start
+        let onopen = Closure::wrap(Box::new(move |_: web_sys::Event| {
+            let _ = ws_clone.send_with_str("{}");
+        }) as Box<dyn FnMut(web_sys::Event)>);
+        ws.set_onopen(Some(onopen.as_ref().unchecked_ref()));
+        onopen.forget();
+
+        setup_ws_handlers(ws, set_operation_output, set_operation_running);
+    };
+
+    // Start flake check via WebSocket
+    let start_flake_check = move |_| {
+        let flake = flake_ref.get();
+        if flake.is_empty() {
+            return;
+        }
+        set_active_operation.set(Some("Flake Check".to_string()));
+        set_operation_output.set(vec![]);
+        set_operation_running.set(true);
+
+        let ws_url = build_ws_url("/ws/nix/flake/check");
+        let ws = match web_sys::WebSocket::new(&ws_url) {
+            Ok(ws) => ws,
+            Err(_) => {
+                set_operation_output.update(|lines| {
+                    lines.push("Error: Failed to create WebSocket connection".to_string());
+                });
+                set_operation_running.set(false);
+                return;
+            }
+        };
+
+        // Clone for onopen closure
+        let ws_clone = ws.clone();
+        let flake_clone = flake.clone();
+
+        // On open: send the request with flake ref
+        let onopen = Closure::wrap(Box::new(move |_: web_sys::Event| {
+            let request = serde_json::json!({
+                "flake_ref": flake_clone
+            });
+            let msg = serde_json::to_string(&request).unwrap_or_default();
+            let _ = ws_clone.send_with_str(&msg);
+        }) as Box<dyn FnMut(web_sys::Event)>);
+        ws.set_onopen(Some(onopen.as_ref().unchecked_ref()));
+        onopen.forget();
+
+        setup_ws_handlers(ws, set_operation_output, set_operation_running);
     };
 
     let clear_output = move |_| {
@@ -388,9 +548,13 @@ pub fn NixOperationsPage() -> impl IntoView {
                         <button
                             class="w-full px-4 py-2 bg-destructive text-destructive-foreground hover:bg-destructive/90 text-sm font-medium rounded-md disabled:opacity-50"
                             disabled=move || operation_running.get()
-                            on:click=move |_| start_operation("gc")
+                            on:click=start_gc
                         >
-                            "Run Garbage Collection"
+                            {move || if operation_running.get() && active_operation.get().as_deref() == Some("Garbage Collection") {
+                                "Running..."
+                            } else {
+                                "Run Garbage Collection"
+                            }}
                         </button>
                     </div>
                 </Card>
@@ -404,9 +568,13 @@ pub fn NixOperationsPage() -> impl IntoView {
                         <button
                             class="w-full px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium rounded-md disabled:opacity-50"
                             disabled=move || operation_running.get()
-                            on:click=move |_| start_operation("optimise")
+                            on:click=start_optimise
                         >
-                            "Optimise Store"
+                            {move || if operation_running.get() && active_operation.get().as_deref() == Some("Store Optimise") {
+                                "Running..."
+                            } else {
+                                "Optimise Store"
+                            }}
                         </button>
                     </div>
                 </Card>
@@ -420,9 +588,13 @@ pub fn NixOperationsPage() -> impl IntoView {
                         <button
                             class="w-full px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm font-medium rounded-md disabled:opacity-50"
                             disabled=move || operation_running.get()
-                            on:click=move |_| start_operation("verify")
+                            on:click=start_verify
                         >
-                            "Verify Store"
+                            {move || if operation_running.get() && active_operation.get().as_deref() == Some("Store Verify") {
+                                "Running..."
+                            } else {
+                                "Verify Store"
+                            }}
                         </button>
                     </div>
                 </Card>
@@ -448,9 +620,13 @@ pub fn NixOperationsPage() -> impl IntoView {
                         <button
                             class="w-full px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium rounded-md disabled:opacity-50"
                             disabled=move || operation_running.get() || flake_ref.get().is_empty()
-                            on:click=move |_| start_operation("flake-check")
+                            on:click=start_flake_check
                         >
-                            "Run Flake Check"
+                            {move || if operation_running.get() && active_operation.get().as_deref() == Some("Flake Check") {
+                                "Running..."
+                            } else {
+                                "Run Flake Check"
+                            }}
                         </button>
                     </div>
                 </Card>
@@ -505,30 +681,45 @@ pub fn NixOperationsPage() -> impl IntoView {
                     <div class="space-y-3">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-2">
+                                <span class="text-sm text-muted-foreground">
+                                    {move || active_operation.get().unwrap_or_default()}
+                                </span>
                                 <Show when=move || operation_running.get()>
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800900200">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                                         <span class="w-2 h-2 mr-1.5 bg-blue-500 rounded-full animate-pulse"></span>
                                         "Running"
                                     </span>
                                 </Show>
                             </div>
                             <button
-                                class="text-sm text-muted-foreground hover:text-foreground  "
+                                class="text-sm text-muted-foreground hover:text-foreground"
                                 on:click=clear_output
                             >
                                 "Clear"
                             </button>
                         </div>
-                        <div class="bg-background rounded-lg p-4 font-mono text-sm text-green-400 max-h-80 overflow-auto">
+                        <div class="bg-zinc-900 rounded-lg p-4 font-mono text-sm max-h-80 overflow-auto">
                             <For
                                 each=move || operation_output.get()
                                 key=|l| l.clone()
-                                let:line
+                                let:output_line
                             >
-                                <p class="whitespace-pre-wrap">{line}</p>
+                                {
+                                    let text = output_line.clone();
+                                    let is_error = text.starts_with("Error:") || text.contains("error:");
+                                    let is_success = text.contains("completed") || text.contains("success");
+                                    let class = if is_error {
+                                        "whitespace-pre-wrap text-red-400"
+                                    } else if is_success {
+                                        "whitespace-pre-wrap text-green-400"
+                                    } else {
+                                        "whitespace-pre-wrap text-gray-300"
+                                    };
+                                    view! { <p class=class>{text}</p> }
+                                }
                             </For>
                             <Show when=move || operation_running.get()>
-                                <p class="animate-pulse">"_"</p>
+                                <p class="animate-pulse text-green-400">"_"</p>
                             </Show>
                         </div>
                     </div>
@@ -536,6 +727,73 @@ pub fn NixOperationsPage() -> impl IntoView {
             </Show>
         </div>
     }
+}
+
+/// Setup WebSocket message handlers
+fn setup_ws_handlers(
+    ws: web_sys::WebSocket,
+    set_output: WriteSignal<Vec<String>>,
+    set_running: WriteSignal<bool>,
+) {
+    // On message: handle streaming output
+    let set_output_msg = set_output.clone();
+    let set_running_msg = set_running.clone();
+    let onmessage = Closure::wrap(Box::new(move |e: web_sys::MessageEvent| {
+        if let Some(text) = e.data().as_string() {
+            if let Ok(msg) = serde_json::from_str::<WsMessage>(&text) {
+                match msg {
+                    WsMessage::Started { command } => {
+                        set_output_msg.update(|lines| {
+                            lines.push(format!("$ {}", command));
+                        });
+                    }
+                    WsMessage::Output(line) => {
+                        set_output_msg.update(|lines| {
+                            lines.push(line.content);
+                        });
+                    }
+                    WsMessage::Completed { exit_code } => {
+                        set_output_msg.update(|lines| {
+                            if exit_code == 0 {
+                                lines.push("Operation completed successfully!".to_string());
+                            } else {
+                                lines.push(format!("Operation finished with exit code: {}", exit_code));
+                            }
+                        });
+                        set_running_msg.set(false);
+                    }
+                    WsMessage::Error { message } => {
+                        set_output_msg.update(|lines| {
+                            lines.push(format!("Error: {}", message));
+                        });
+                        set_running_msg.set(false);
+                    }
+                }
+            }
+        }
+    }) as Box<dyn FnMut(web_sys::MessageEvent)>);
+    ws.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
+    onmessage.forget();
+
+    // On error
+    let set_output_err = set_output.clone();
+    let set_running_err = set_running.clone();
+    let onerror = Closure::wrap(Box::new(move |_: web_sys::Event| {
+        set_output_err.update(|lines| {
+            lines.push("WebSocket error occurred".to_string());
+        });
+        set_running_err.set(false);
+    }) as Box<dyn FnMut(web_sys::Event)>);
+    ws.set_onerror(Some(onerror.as_ref().unchecked_ref()));
+    onerror.forget();
+
+    // On close
+    let set_running_close = set_running.clone();
+    let onclose = Closure::wrap(Box::new(move |_: web_sys::CloseEvent| {
+        set_running_close.set(false);
+    }) as Box<dyn FnMut(web_sys::CloseEvent)>);
+    ws.set_onclose(Some(onclose.as_ref().unchecked_ref()));
+    onclose.forget();
 }
 
 fn format_bytes(bytes: u64) -> String {

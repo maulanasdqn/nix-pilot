@@ -31,7 +31,7 @@ async fn fetch_services() -> Result<Vec<ServiceInfo>, String> {
     let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
     let token = storage.get_item("np_token").map_err(|_| "No token")?;
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("GET");
 
     let request = web_sys::Request::new_with_str_and_init("/api/system/services", &opts)
@@ -67,7 +67,7 @@ async fn service_action(service: String, action: String) -> Result<(), String> {
 
     let body = serde_json::json!({ "action": action });
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("POST");
     opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
 

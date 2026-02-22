@@ -39,6 +39,7 @@ pub fn create_router(state: AppState) -> Router {
         // Registered flakes
         .route("/flakes", get(routes::list_flakes))
         .route("/flakes", post(routes::create_flake))
+        .route("/flakes/detect", get(routes::detect_flakes))
         .route("/flakes/metadata", post(routes::get_metadata_by_path))
         .route("/flakes/{id}", get(routes::get_flake))
         .route("/flakes/{id}", put(routes::update_flake))

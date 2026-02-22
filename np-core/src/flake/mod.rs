@@ -10,6 +10,9 @@ pub mod manager;
 pub mod parser;
 pub mod types;
 
+#[cfg(test)]
+mod tests;
+
 pub use manager::FlakeManager;
 pub use parser::FlakeParser;
 pub use types::{

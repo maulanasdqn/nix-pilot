@@ -117,8 +117,9 @@ async fn fetch_dashboard_stats() -> Result<DashboardStats, String> {
 
         if resp.ok() {
             if let Ok(json) = wasm_bindgen_futures::JsFuture::from(resp.json().unwrap()).await {
-                if let Ok(data) = serde_wasm_bindgen::from_value::<FlakeListResponse>(json) {
-                    stats.flake_count = data.flakes.len();
+                // API returns array directly, not wrapped in { flakes: [...] }
+                if let Ok(flakes) = serde_wasm_bindgen::from_value::<Vec<FlakeBasic>>(json) {
+                    stats.flake_count = flakes.len();
                 }
             }
         }
