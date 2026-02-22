@@ -18,11 +18,11 @@ fn ProfileDropdown() -> impl IntoView {
                 <div class="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
                     "A"
                 </div>
-                <div class="hidden md:block text-left">
+                <div class="hidden sm:block text-left">
                     <p class="text-sm font-medium text-foreground">"Admin"</p>
                     <p class="text-xs text-muted-foreground">"admin@nix.local"</p>
                 </div>
-                <IconChevronDown size=IconSize::Sm class="text-muted-foreground".to_string() />
+                <IconChevronDown size=IconSize::Sm class="hidden sm:block text-muted-foreground".to_string() />
             </button>
 
             // Backdrop
@@ -80,23 +80,43 @@ fn ProfileDropdown() -> impl IntoView {
 
 /// Top navigation bar (shadcn style)
 #[component]
-pub fn Navbar() -> impl IntoView {
+pub fn Navbar(
+    #[prop(into)] on_menu_click: Callback<()>,
+) -> impl IntoView {
     view! {
-        <header class="sticky top-0 z-50 h-14 border-b border-border bg-background">
-            <div class="flex h-full items-center justify-between px-6">
-                // Left side - Breadcrumb / Page context
-                <div class="flex items-center gap-2">
-                    <h1 class="text-lg font-semibold text-foreground">
+        <header class="sticky top-0 z-30 h-14 border-b border-border bg-background">
+            <div class="flex h-full items-center justify-between px-4 sm:px-6">
+                // Left side - Mobile menu + Page context
+                <div class="flex items-center gap-3">
+                    // Mobile menu button
+                    <button
+                        type="button"
+                        class="md:hidden inline-flex items-center justify-center rounded-md h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        on:click=move |_| on_menu_click.run(())
+                    >
+                        <IconMenu size=IconSize::Sm />
+                    </button>
+
+                    // Mobile logo (shown when sidebar is hidden)
+                    <div class="md:hidden flex items-center gap-2">
+                        <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                            <IconFlake size=IconSize::Xs />
+                        </div>
+                        <span class="font-semibold text-foreground text-sm">"Nix Pilot"</span>
+                    </div>
+
+                    // Desktop title
+                    <h1 class="hidden md:block text-lg font-semibold text-foreground">
                         "Dashboard"
                     </h1>
                 </div>
 
                 // Right side - Actions
-                <div class="flex items-center gap-2">
-                    // Search button
+                <div class="flex items-center gap-1 sm:gap-2">
+                    // Search button (hidden on very small screens)
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center rounded-md text-sm font-medium h-9 px-3 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        class="hidden sm:inline-flex items-center justify-center rounded-md text-sm font-medium h-9 px-3 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                     >
                         <IconSearch size=IconSize::Sm />
                         <span class="ml-2 hidden lg:inline-flex">"Search..."</span>
@@ -105,7 +125,7 @@ pub fn Navbar() -> impl IntoView {
                         </kbd>
                     </button>
 
-                    // Divider
+                    // Divider (hidden on mobile)
                     <div class="hidden md:block h-6 w-px bg-border"></div>
 
                     // Notifications
@@ -122,7 +142,7 @@ pub fn Navbar() -> impl IntoView {
                         </span>
                     </button>
 
-                    // Theme toggle placeholder
+                    // Theme toggle
                     <button
                         type="button"
                         class="inline-flex items-center justify-center rounded-md h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"

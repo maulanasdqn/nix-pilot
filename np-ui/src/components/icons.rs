@@ -7,6 +7,7 @@ use leptos::prelude::*;
 /// Icon size variants
 #[derive(Debug, Clone, Copy, Default)]
 pub enum IconSize {
+    Xs,
     Sm,
     #[default]
     Md,
@@ -17,6 +18,7 @@ pub enum IconSize {
 impl IconSize {
     fn class(&self) -> &'static str {
         match self {
+            IconSize::Xs => "w-3 h-3",
             IconSize::Sm => "w-4 h-4",
             IconSize::Md => "w-5 h-5",
             IconSize::Lg => "w-6 h-6",
@@ -26,6 +28,7 @@ impl IconSize {
 
     fn width(&self) -> &'static str {
         match self {
+            IconSize::Xs => "12",
             IconSize::Sm => "16",
             IconSize::Md => "20",
             IconSize::Lg => "24",
@@ -35,6 +38,7 @@ impl IconSize {
 
     fn height(&self) -> &'static str {
         match self {
+            IconSize::Xs => "12",
             IconSize::Sm => "16",
             IconSize::Md => "20",
             IconSize::Lg => "24",
@@ -368,6 +372,26 @@ pub fn IconLogout(#[prop(default = IconSize::Md)] size: IconSize) -> impl IntoVi
     view! {
         <svg class=size.class() width=size.width() height=size.height() fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+        </svg>
+    }
+}
+
+/// Hamburger menu icon
+#[component]
+pub fn IconMenu(#[prop(default = IconSize::Md)] size: IconSize) -> impl IntoView {
+    view! {
+        <svg class=size.class() width=size.width() height=size.height() fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
+    }
+}
+
+/// X/Close icon
+#[component]
+pub fn IconX(#[prop(default = IconSize::Md)] size: IconSize) -> impl IntoView {
+    view! {
+        <svg class=size.class() width=size.width() height=size.height() fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
         </svg>
     }
 }

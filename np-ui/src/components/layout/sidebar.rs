@@ -11,6 +11,7 @@ fn NavItem(
     #[prop(into)] href: String,
     #[prop(into)] label: String,
     icon: impl IntoView + 'static,
+    #[prop(optional)] on_click: Option<Box<dyn Fn() + 'static>>,
 ) -> impl IntoView {
     let location = use_location();
     let href_clone = href.clone();
@@ -35,6 +36,11 @@ fn NavItem(
                     format!("{} text-muted-foreground hover:text-foreground hover:bg-accent/50", base)
                 }
             }
+            on:click=move |_| {
+                if let Some(ref cb) = on_click {
+                    cb();
+                }
+            }
         >
             <span class="flex-shrink-0">{icon}</span>
             <span>{label}</span>
@@ -54,17 +60,36 @@ fn SectionHeader(#[prop(into)] label: String) -> impl IntoView {
 
 /// Left sidebar navigation (shadcn style)
 #[component]
-pub fn Sidebar() -> impl IntoView {
+pub fn Sidebar(
+    #[prop(default = false)] mobile: bool,
+    #[prop(into)] on_close: Callback<()>,
+) -> impl IntoView {
+    let close = move || on_close.run(());
+
     view! {
-        <aside class="hidden md:flex w-64 flex-col border-r border-border bg-background">
+        <>
             // Logo/Brand
-            <div class="flex h-14 items-center border-b border-border px-4">
+            <div class="flex h-14 items-center border-b border-border px-4 justify-between">
                 <A href="/" attr:class="flex items-center gap-2 font-semibold text-foreground">
                     <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                         <IconFlake size=IconSize::Sm />
                     </div>
                     <span>"Nix Pilot"</span>
                 </A>
+                // Close button for mobile
+                {if mobile {
+                    Some(view! {
+                        <button
+                            type="button"
+                            class="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            on:click=move |_| close()
+                        >
+                            <IconX size=IconSize::Sm />
+                        </button>
+                    })
+                } else {
+                    None
+                }}
             </div>
 
             // Navigation
@@ -73,28 +98,63 @@ pub fn Sidebar() -> impl IntoView {
                     // Overview Section
                     <div class="space-y-1">
                         <SectionHeader label="Overview" />
-                        <NavItem href="/dashboard" label="Dashboard" icon=view! { <IconDashboard size=IconSize::Sm /> } />
-                        <NavItem href="/services" label="Services" icon=view! { <IconService size=IconSize::Sm /> } />
-                        <NavItem href="/flakes" label="Flakes" icon=view! { <IconFlake size=IconSize::Sm /> } />
+                        <NavItem
+                            href="/dashboard"
+                            label="Dashboard"
+                            icon=view! { <IconDashboard size=IconSize::Sm /> }
+                            on_click=Box::new(move || close())
+                        />
+                        <NavItem
+                            href="/services"
+                            label="Services"
+                            icon=view! { <IconService size=IconSize::Sm /> }
+                            on_click=Box::new(move || close())
+                        />
+                        <NavItem
+                            href="/flakes"
+                            label="Flakes"
+                            icon=view! { <IconFlake size=IconSize::Sm /> }
+                            on_click=Box::new(move || close())
+                        />
                     </div>
 
                     // Operations Section
                     <div class="space-y-1">
                         <SectionHeader label="Operations" />
-                        <NavItem href="/rebuild" label="Rebuild" icon=view! { <IconDeploy size=IconSize::Sm /> } />
-                        <NavItem href="/nix" label="Nix Operations" icon=view! { <IconTerminal size=IconSize::Sm /> } />
+                        <NavItem
+                            href="/rebuild"
+                            label="Rebuild"
+                            icon=view! { <IconDeploy size=IconSize::Sm /> }
+                            on_click=Box::new(move || close())
+                        />
+                        <NavItem
+                            href="/nix"
+                            label="Nix Operations"
+                            icon=view! { <IconTerminal size=IconSize::Sm /> }
+                            on_click=Box::new(move || close())
+                        />
                     </div>
 
                     // Security Section
                     <div class="space-y-1">
                         <SectionHeader label="Security" />
-                        <NavItem href="/secrets" label="Secrets" icon=view! { <IconShield size=IconSize::Sm /> } />
+                        <NavItem
+                            href="/secrets"
+                            label="Secrets"
+                            icon=view! { <IconShield size=IconSize::Sm /> }
+                            on_click=Box::new(move || close())
+                        />
                     </div>
 
                     // System Section
                     <div class="space-y-1">
                         <SectionHeader label="System" />
-                        <NavItem href="/settings" label="Settings" icon=view! { <IconSettings size=IconSize::Sm /> } />
+                        <NavItem
+                            href="/settings"
+                            label="Settings"
+                            icon=view! { <IconSettings size=IconSize::Sm /> }
+                            on_click=Box::new(move || close())
+                        />
                     </div>
                 </div>
             </nav>
@@ -118,6 +178,6 @@ pub fn Sidebar() -> impl IntoView {
                     <span>"Logout"</span>
                 </button>
             </div>
-        </aside>
+        </>
     }
 }
