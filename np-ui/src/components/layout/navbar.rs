@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos_router::hooks::use_location;
 
 use crate::app::logout;
 use crate::components::icons::*;
@@ -78,11 +79,36 @@ fn ProfileDropdown() -> impl IntoView {
     }
 }
 
+/// Get page title from pathname
+fn get_page_title(pathname: &str) -> &'static str {
+    match pathname {
+        "/" | "/dashboard" => "Dashboard",
+        "/services" => "Services",
+        "/flakes" => "Flakes",
+        "/flakes/add" => "Add Flake",
+        "/rebuild" => "Rebuild",
+        "/nix" => "Nix Operations",
+        "/secrets" => "Secrets",
+        "/secrets/keys" => "Age Keys",
+        "/settings" => "Settings",
+        path if path.starts_with("/services/") => "Service Details",
+        path if path.starts_with("/flakes/") => "Flake Details",
+        _ => "Nix Pilot",
+    }
+}
+
 /// Top navigation bar (shadcn style)
 #[component]
 pub fn Navbar(
     #[prop(into)] on_menu_click: Callback<()>,
 ) -> impl IntoView {
+    let location = use_location();
+
+    let page_title = move || {
+        let pathname = location.pathname.get();
+        get_page_title(&pathname)
+    };
+
     view! {
         <header class="sticky top-0 z-30 h-14 border-b border-border bg-background">
             <div class="flex h-full items-center justify-between px-4 sm:px-6">
@@ -105,9 +131,9 @@ pub fn Navbar(
                         <span class="font-semibold text-foreground text-sm">"Nix Pilot"</span>
                     </div>
 
-                    // Desktop title
+                    // Desktop title (dynamic based on current route)
                     <h1 class="hidden md:block text-lg font-semibold text-foreground">
-                        "Dashboard"
+                        {page_title}
                     </h1>
                 </div>
 
