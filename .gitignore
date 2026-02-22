@@ -34,3 +34,4 @@ Thumbs.db
 *.log
 /logs/
 np-ui/dist/
+node_modules/
