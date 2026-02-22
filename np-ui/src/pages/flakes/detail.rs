@@ -2,18 +2,94 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::JsCast;
+use leptos::wasm_bindgen::JsCast;
+use wasm_bindgen::closure::Closure;
 
+use crate::api::check_response_status;
 use crate::components::common::Card;
+use crate::components::ui::spinner::Spinner;
+
+use std::collections::HashMap;
+
+/// Output line from streaming command
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct OutputLine {
+    content: String,
+    #[serde(default)]
+    is_stderr: bool,
+}
+
+/// WebSocket message types
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data")]
+enum WsMessage {
+    Output(OutputLine),
+    Started { command: String },
+    Completed { exit_code: i32 },
+    Error { message: String },
+}
+
+/// Request to send over WebSocket
+#[derive(Clone, Debug, Serialize)]
+struct UpdateLockWsRequest {
+    input: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct FlakeInputRef {
+    #[serde(rename = "type", default)]
+    input_type: String,
+    #[serde(default)]
+    owner: Option<String>,
+    #[serde(default)]
+    repo: Option<String>,
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(rename = "ref", default)]
+    git_ref: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct FlakeInputLocked {
+    #[serde(default)]
+    rev: Option<String>,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct FlakeInput {
     #[serde(default)]
     name: String,
     #[serde(default)]
-    url: String,
+    original: FlakeInputRef,
     #[serde(default)]
-    locked_rev: Option<String>,
+    locked: Option<FlakeInputLocked>,
+    #[serde(default)]
+    follows: Option<Vec<String>>,
+}
+
+impl FlakeInputRef {
+    fn to_display_url(&self) -> String {
+        match self.input_type.as_str() {
+            "github" => format!(
+                "github:{}/{}{}",
+                self.owner.as_deref().unwrap_or(""),
+                self.repo.as_deref().unwrap_or(""),
+                self.git_ref.as_ref().map(|r| format!("/{}", r)).unwrap_or_default()
+            ),
+            "follows" => "follows".to_string(),
+            _ => self.url.clone().unwrap_or_else(|| self.input_type.clone()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct FlakeMetadata {
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    inputs: HashMap<String, FlakeInput>,
+    #[serde(default)]
+    last_modified: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -26,27 +102,86 @@ struct FlakeInfo {
     #[serde(default)]
     description: Option<String>,
     #[serde(default)]
-    inputs: Vec<FlakeInput>,
+    metadata: Option<FlakeMetadata>,
     #[serde(default)]
-    last_updated: Option<String>,
+    updated_at: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+impl FlakeInfo {
+    fn get_inputs(&self) -> Vec<FlakeInput> {
+        self.metadata
+            .as_ref()
+            .map(|m| m.inputs.values().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    fn get_description(&self) -> Option<String> {
+        self.description.clone()
+            .or_else(|| self.metadata.as_ref().and_then(|m| m.description.clone()))
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct FlakeOutputEntry {
+    #[serde(rename = "type", default)]
+    output_type: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct FlakeOutputsRaw {
+    #[serde(rename = "nixosConfigurations", default)]
+    nixos_configurations: Option<HashMap<String, FlakeOutputEntry>>,
+    #[serde(rename = "darwinConfigurations", default)]
+    darwin_configurations: Option<HashMap<String, FlakeOutputEntry>>,
+    #[serde(default)]
+    packages: Option<HashMap<String, HashMap<String, FlakeOutputEntry>>>,
+    #[serde(rename = "devShells", default)]
+    dev_shells: Option<HashMap<String, HashMap<String, FlakeOutputEntry>>>,
+    #[serde(rename = "nixosModules", default)]
+    nixos_modules: Option<HashMap<String, FlakeOutputEntry>>,
+}
+
+#[derive(Clone, Debug, Default)]
 struct FlakeOutputs {
-    #[serde(default)]
     nixos_configurations: Vec<String>,
-    #[serde(default)]
+    darwin_configurations: Vec<String>,
     packages: Vec<String>,
-    #[serde(default)]
     dev_shells: Vec<String>,
-    #[serde(default)]
     nixos_modules: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct UpdateResponse {
-    #[serde(default)]
-    message: String,
+impl From<FlakeOutputsRaw> for FlakeOutputs {
+    fn from(raw: FlakeOutputsRaw) -> Self {
+        Self {
+            nixos_configurations: raw.nixos_configurations
+                .map(|m| m.keys().cloned().collect())
+                .unwrap_or_default(),
+            darwin_configurations: raw.darwin_configurations
+                .map(|m| m.keys().cloned().collect())
+                .unwrap_or_default(),
+            packages: raw.packages
+                .map(|m| {
+                    m.values()
+                        .flat_map(|inner| inner.keys().cloned())
+                        .collect()
+                })
+                .unwrap_or_default(),
+            dev_shells: raw.dev_shells
+                .map(|m| {
+                    m.values()
+                        .flat_map(|inner| inner.keys().cloned())
+                        .collect()
+                })
+                .unwrap_or_default(),
+            nixos_modules: raw.nixos_modules
+                .map(|m| m.keys().cloned().collect())
+                .unwrap_or_default(),
+        }
+    }
 }
 
 async fn fetch_flake(id: String) -> Result<FlakeInfo, String> {
@@ -54,7 +189,7 @@ async fn fetch_flake(id: String) -> Result<FlakeInfo, String> {
     let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
     let token = storage.get_item("np_token").map_err(|_| "No token")?;
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("GET");
 
     let url = format!("/api/flakes/{}", id);
@@ -71,9 +206,8 @@ async fn fetch_flake(id: String) -> Result<FlakeInfo, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("HTTP {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -88,7 +222,7 @@ async fn fetch_outputs(id: String) -> Result<FlakeOutputs, String> {
     let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
     let token = storage.get_item("np_token").map_err(|_| "No token")?;
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("GET");
 
     let url = format!("/api/flakes/{}/outputs", id);
@@ -105,6 +239,12 @@ async fn fetch_outputs(id: String) -> Result<FlakeOutputs, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
+    // Handle 401 - logout and redirect
+    if resp.status() == 401 {
+        crate::api::logout_and_redirect();
+        return Err("Session expired. Please login again.".to_string());
+    }
+
     if !resp.ok() {
         return Ok(FlakeOutputs::default());
     }
@@ -113,7 +253,9 @@ async fn fetch_outputs(id: String) -> Result<FlakeOutputs, String> {
         .await
         .map_err(|_| "JSON parse failed")?;
 
-    Ok(serde_wasm_bindgen::from_value(json).unwrap_or_default())
+    // Deserialize to raw format first, then convert
+    let raw: FlakeOutputsRaw = serde_wasm_bindgen::from_value(json).unwrap_or_default();
+    Ok(FlakeOutputs::from(raw))
 }
 
 async fn refresh_metadata(id: String) -> Result<FlakeInfo, String> {
@@ -121,7 +263,7 @@ async fn refresh_metadata(id: String) -> Result<FlakeInfo, String> {
     let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
     let token = storage.get_item("np_token").map_err(|_| "No token")?;
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("POST");
 
     let url = format!("/api/flakes/{}/refresh", id);
@@ -138,9 +280,8 @@ async fn refresh_metadata(id: String) -> Result<FlakeInfo, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("Refresh failed: {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -155,7 +296,7 @@ async fn unregister_flake(id: String) -> Result<(), String> {
     let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
     let token = storage.get_item("np_token").map_err(|_| "No token")?;
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("DELETE");
 
     let url = format!("/api/flakes/{}", id);
@@ -172,62 +313,10 @@ async fn unregister_flake(id: String) -> Result<(), String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if resp.ok() {
-        Ok(())
-    } else {
-        Err(format!("Unregister failed: {}", resp.status()))
-    }
-}
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
-async fn update_lock(id: String, input: Option<String>) -> Result<String, String> {
-    let window = web_sys::window().ok_or("No window")?;
-    let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
-    let token = storage.get_item("np_token").map_err(|_| "No token")?;
-
-    let body = serde_json::json!({ "input": input });
-
-    let mut opts = web_sys::RequestInit::new();
-    opts.set_method("POST");
-    opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
-
-    let url = format!("/api/flakes/{}/lock/update", id);
-    let request = web_sys::Request::new_with_str_and_init(&url, &opts)
-        .map_err(|_| "Failed to create request")?;
-
-    if let Some(t) = token {
-        request.headers().set("Authorization", &format!("Bearer {}", t)).ok();
-    }
-    request.headers().set("Content-Type", "application/json").ok();
-
-    let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
-        .await
-        .map_err(|_| "Fetch failed")?;
-
-    let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
-
-    if !resp.ok() {
-        return Err(format!("Update failed: {}", resp.status()));
-    }
-
-    let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
-        .await
-        .map_err(|_| "JSON parse failed")?;
-
-    let response: UpdateResponse = serde_wasm_bindgen::from_value(json)
-        .map_err(|e| format!("Deserialize failed: {:?}", e))?;
-
-    Ok(if response.message.is_empty() { "Update started".to_string() } else { response.message })
-}
-
-impl Default for FlakeOutputs {
-    fn default() -> Self {
-        Self {
-            nixos_configurations: vec![],
-            packages: vec![],
-            dev_shells: vec![],
-            nixos_modules: vec![],
-        }
-    }
+    Ok(())
 }
 
 /// Flake detail page
@@ -340,23 +429,103 @@ pub fn FlakeDetailPage() -> impl IntoView {
         set_update_output.update(|lines| {
             lines.push(format!("$ nix flake update{}", input.as_ref().map(|i| format!(" {}", i)).unwrap_or_default()));
         });
-        leptos::task::spawn_local(async move {
-            match update_lock(id, input).await {
-                Ok(msg) => {
-                    set_update_output.update(|lines| {
-                        lines.push(msg);
-                        lines.push("Update completed!".to_string());
-                    });
-                    set_updating.set(false);
-                }
-                Err(e) => {
-                    set_update_output.update(|lines| {
-                        lines.push(format!("Error: {}", e));
-                    });
-                    set_updating.set(false);
+
+        // Build WebSocket URL with auth token
+        let window = web_sys::window().unwrap();
+        let storage = window.local_storage().ok().flatten();
+        let token = storage.and_then(|s| s.get_item("np_token").ok().flatten()).unwrap_or_default();
+
+        let location = window.location();
+        let protocol = location.protocol().unwrap_or_else(|_| "http:".to_string());
+        let ws_protocol = if protocol == "https:" { "wss:" } else { "ws:" };
+        let host = location.host().unwrap_or_else(|_| "localhost:8080".to_string());
+        let ws_url = format!("{}//{}/api/ws/flakes/{}/lock/update?token={}", ws_protocol, host, id, token);
+
+        // Create WebSocket
+        let ws = match web_sys::WebSocket::new(&ws_url) {
+            Ok(ws) => ws,
+            Err(_) => {
+                set_update_output.update(|lines| {
+                    lines.push("Error: Failed to create WebSocket connection".to_string());
+                });
+                set_updating.set(false);
+                return;
+            }
+        };
+
+        // Clone for onopen closure
+        let ws_clone = ws.clone();
+        let input_clone = input.clone();
+
+        // On open: send the update request
+        let onopen = Closure::wrap(Box::new(move |_: web_sys::Event| {
+            let request = UpdateLockWsRequest { input: input_clone.clone() };
+            let msg = serde_json::to_string(&request).unwrap_or_default();
+            let _ = ws_clone.send_with_str(&msg);
+        }) as Box<dyn FnMut(web_sys::Event)>);
+        ws.set_onopen(Some(onopen.as_ref().unchecked_ref()));
+        onopen.forget();
+
+        // On message: handle streaming output
+        let set_update_output_msg = set_update_output.clone();
+        let set_updating_msg = set_updating.clone();
+        let onmessage = Closure::wrap(Box::new(move |e: web_sys::MessageEvent| {
+            if let Some(text) = e.data().as_string() {
+                if let Ok(msg) = serde_json::from_str::<WsMessage>(&text) {
+                    match msg {
+                        WsMessage::Started { command } => {
+                            set_update_output_msg.update(|lines| {
+                                lines.push(format!("Starting: {}", command));
+                            });
+                        }
+                        WsMessage::Output(line) => {
+                            set_update_output_msg.update(|lines| {
+                                let prefix = if line.is_stderr { "[stderr] " } else { "" };
+                                lines.push(format!("{}{}", prefix, line.content));
+                            });
+                        }
+                        WsMessage::Completed { exit_code } => {
+                            set_update_output_msg.update(|lines| {
+                                if exit_code == 0 {
+                                    lines.push("Update completed successfully!".to_string());
+                                } else {
+                                    lines.push(format!("Update finished with exit code: {}", exit_code));
+                                }
+                            });
+                            set_updating_msg.set(false);
+                        }
+                        WsMessage::Error { message } => {
+                            set_update_output_msg.update(|lines| {
+                                lines.push(format!("Error: {}", message));
+                            });
+                            set_updating_msg.set(false);
+                        }
+                    }
                 }
             }
-        });
+        }) as Box<dyn FnMut(web_sys::MessageEvent)>);
+        ws.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
+        onmessage.forget();
+
+        // On error
+        let set_update_output_err = set_update_output.clone();
+        let set_updating_err = set_updating.clone();
+        let onerror = Closure::wrap(Box::new(move |_: web_sys::Event| {
+            set_update_output_err.update(|lines| {
+                lines.push("WebSocket error occurred".to_string());
+            });
+            set_updating_err.set(false);
+        }) as Box<dyn FnMut(web_sys::Event)>);
+        ws.set_onerror(Some(onerror.as_ref().unchecked_ref()));
+        onerror.forget();
+
+        // On close
+        let set_updating_close = set_updating.clone();
+        let onclose = Closure::wrap(Box::new(move |_: web_sys::CloseEvent| {
+            set_updating_close.set(false);
+        }) as Box<dyn FnMut(web_sys::CloseEvent)>);
+        ws.set_onclose(Some(onclose.as_ref().unchecked_ref()));
+        onclose.forget();
     };
 
     let close_modal = move |_| {
@@ -371,41 +540,45 @@ pub fn FlakeDetailPage() -> impl IntoView {
                 <div class="flex items-center space-x-4">
                     <A
                         href="/flakes"
-                        attr:class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        attr:class="text-muted-foreground hover:text-foreground :text-gray-200"
                     >
                         {"\u{2190} Back"}
                     </A>
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    <h1 class="text-2xl font-bold text-foreground ">
                         "Flake Details"
                     </h1>
                 </div>
                 <div class="flex space-x-3">
                     <button
-                        class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
+                        class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50 inline-flex items-center gap-2"
                         on:click=on_update_all
                         disabled=move || loading.get()
                     >
                         "Update All Inputs"
                     </button>
                     <button
-                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 inline-flex items-center gap-2"
                         on:click=on_refresh
                         disabled=move || refreshing.get() || loading.get()
                     >
-                        {move || if refreshing.get() { "Refreshing..." } else { "Refresh Metadata" }}
+                        <Show when=move || refreshing.get() fallback=|| "Refresh Metadata">
+                            <Spinner class="size-4" />" Refreshing..."
+                        </Show>
                     </button>
                     <button
-                        class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
+                        class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50 inline-flex items-center gap-2"
                         on:click=on_unregister
                         disabled=move || unregistering.get() || loading.get()
                     >
-                        {move || if unregistering.get() { "Unregistering..." } else { "Unregister" }}
+                        <Show when=move || unregistering.get() fallback=|| "Unregister">
+                            <Spinner class="size-4" />" Unregistering..."
+                        </Show>
                     </button>
                 </div>
             </div>
 
             {move || error.get().map(|e| view! {
-                <div class="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                <div class="p-3 bg-red-500/20 border border-red-500/30 text-red-700 rounded">
                     {e}
                 </div>
             })}
@@ -418,7 +591,7 @@ pub fn FlakeDetailPage() -> impl IntoView {
 
             <Show when=move || loading.get()>
                 <div class="text-center py-12">
-                    <p class="text-gray-500">"Loading flake details..."</p>
+                    <p class="text-muted-foreground">"Loading flake details..."</p>
                 </div>
             </Show>
 
@@ -426,34 +599,34 @@ pub fn FlakeDetailPage() -> impl IntoView {
                 {move || {
                     let f = flake.get().unwrap();
                     let f_clone = f.clone();
-                    let inputs = f.inputs.clone();
+                    let inputs = f.get_inputs();
                     view! {
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             // Flake Info
                             <Card title="Information".to_string()>
                                 <dl class="space-y-4">
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Name"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Name"</dt>
+                                        <dd class="mt-1 text-sm text-foreground ">
                                             {f.name.clone()}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Path"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Path"</dt>
+                                        <dd class="mt-1 text-sm text-foreground  font-mono">
                                             {f.path.clone()}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Description"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
-                                            {f.description.clone().unwrap_or_else(|| "No description".to_string())}
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Description"</dt>
+                                        <dd class="mt-1 text-sm text-foreground ">
+                                            {f.get_description().unwrap_or_else(|| "No description".to_string())}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Last Updated"</dt>
-                                        <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
-                                            {f.last_updated.clone().unwrap_or_else(|| "Unknown".to_string())}
+                                        <dt class="text-sm font-medium text-muted-foreground ">"Last Updated"</dt>
+                                        <dd class="mt-1 text-sm text-foreground ">
+                                            {f.updated_at.clone().unwrap_or_else(|| "Unknown".to_string())}
                                         </dd>
                                     </div>
                                 </dl>
@@ -464,28 +637,36 @@ pub fn FlakeDetailPage() -> impl IntoView {
                                 <div class="space-y-4">
                                     {if inputs.is_empty() {
                                         view! {
-                                            <p class="text-gray-500 dark:text-gray-400">"No inputs found"</p>
+                                            <p class="text-muted-foreground ">"No inputs found. Click \"Refresh Metadata\" to load inputs."</p>
                                         }.into_any()
                                     } else {
                                         inputs.into_iter().map(|input| {
                                             let name = input.name.clone();
                                             let name_for_update = name.clone();
+                                            let url = input.original.to_display_url();
+                                            let locked_rev = input.locked.as_ref().and_then(|l| l.rev.clone());
+                                            let follows = input.follows.clone();
                                             view! {
-                                                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                                <div class="flex items-center justify-between p-3 bg-muted  rounded-lg">
                                                     <div class="flex-1 min-w-0">
                                                         <div class="flex items-center space-x-2">
-                                                            <span class="font-medium text-gray-900 dark:text-gray-100">{name.clone()}</span>
+                                                            <span class="font-medium text-foreground ">{name.clone()}</span>
+                                                            {follows.map(|f| view! {
+                                                                <span class="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                                                                    "follows: " {f.join(".")}
+                                                                </span>
+                                                            })}
                                                         </div>
-                                                        <p class="text-sm text-gray-500 dark:text-gray-400 font-mono truncate">
-                                                            {input.url.clone()}
+                                                        <p class="text-sm text-muted-foreground  font-mono truncate">
+                                                            {url}
                                                         </p>
-                                                        <p class="text-xs text-gray-400 dark:text-gray-500 font-mono">
-                                                            "Locked: " {input.locked_rev.clone().unwrap_or_else(|| "N/A".to_string())}
+                                                        <p class="text-xs text-muted-foreground  font-mono">
+                                                            "Locked: " {locked_rev.unwrap_or_else(|| "N/A".to_string())}
                                                         </p>
                                                     </div>
                                                     <div class="flex space-x-2 ml-4">
                                                         <button
-                                                            class="px-3 py-1 text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400"
+                                                            class="px-3 py-1 text-sm font-medium text-primary hover:text-primary/80"
                                                             on:click=move |_| {
                                                                 set_selected_input.set(Some(name_for_update.clone()));
                                                                 set_update_output.set(vec![format!("Ready to update {}...", name_for_update)]);
@@ -508,10 +689,14 @@ pub fn FlakeDetailPage() -> impl IntoView {
                             {move || {
                                 let o = outputs.get();
                                 view! {
-                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                                         <OutputCategory
                                             name="NixOS Configurations"
                                             items=o.nixos_configurations.clone()
+                                        />
+                                        <OutputCategory
+                                            name="Darwin Configurations"
+                                            items=o.darwin_configurations.clone()
                                         />
                                         <OutputCategory
                                             name="Packages"
@@ -541,7 +726,7 @@ pub fn FlakeDetailPage() -> impl IntoView {
                                 </A>
                                 <A
                                     href=move || format!("/install?flake={}", flake_id())
-                                    attr:class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors"
+                                    attr:class="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium rounded-md transition-colors"
                                 >
                                     "Install to Machine"
                                 </A>
@@ -554,7 +739,7 @@ pub fn FlakeDetailPage() -> impl IntoView {
                             </div>
                         </Card>
 
-                        <p class="text-sm text-gray-500">
+                        <p class="text-sm text-muted-foreground">
                             "Flake ID: " {flake_id}
                         </p>
                     }
@@ -571,8 +756,8 @@ pub fn FlakeDetailPage() -> impl IntoView {
                     />
 
                     // Modal content
-                    <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
-                        <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
+                    <div class="relative bg-background rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
+                        <h2 class="text-lg font-bold text-foreground  mb-4">
                             {move || match selected_input.get() {
                                 Some(name) => format!("Update '{}'", name),
                                 None => "Update All Inputs".to_string(),
@@ -580,12 +765,12 @@ pub fn FlakeDetailPage() -> impl IntoView {
                         </h2>
 
                         <div class="space-y-4">
-                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                            <p class="text-sm text-muted-foreground ">
                                 "This will run 'nix flake update' to update the lock file."
                             </p>
 
                             // Progress area
-                            <div class="bg-gray-900 rounded-lg p-4 font-mono text-sm text-green-400 h-32 overflow-auto">
+                            <div class="bg-background rounded-lg p-4 font-mono text-sm text-green-400 h-32 overflow-auto">
                                 {move || update_output.get().into_iter().map(|line| view! {
                                     <div>{line}</div>
                                 }).collect::<Vec<_>>()}
@@ -594,17 +779,19 @@ pub fn FlakeDetailPage() -> impl IntoView {
 
                         <div class="flex justify-end space-x-3 mt-6">
                             <button
-                                class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                                class="px-4 py-2 text-sm font-medium text-foreground  hover:bg-muted  rounded-md"
                                 on:click=close_modal
                             >
                                 "Close"
                             </button>
                             <button
-                                class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50"
+                                class="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md disabled:opacity-50 inline-flex items-center gap-2"
                                 on:click=do_update
                                 disabled=move || updating.get()
                             >
-                                {move || if updating.get() { "Updating..." } else { "Update" }}
+                                <Show when=move || updating.get() fallback=|| "Update">
+                                    <Spinner class="size-4" />" Updating..."
+                                </Show>
                             </button>
                         </div>
                     </div>
@@ -621,11 +808,11 @@ fn OutputCategory(
     items: Vec<String>,
 ) -> impl IntoView {
     view! {
-        <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <h4 class="font-medium text-gray-900 dark:text-gray-100 mb-2">{name}</h4>
-            <ul class="text-sm text-gray-500 dark:text-gray-400 space-y-1">
+        <div class="p-4 bg-muted  rounded-lg">
+            <h4 class="font-medium text-foreground  mb-2">{name}</h4>
+            <ul class="text-sm text-muted-foreground  space-y-1">
                 {if items.is_empty() {
-                    view! { <li class="text-gray-400 italic">"None"</li> }.into_any()
+                    view! { <li class="text-muted-foreground italic">"None"</li> }.into_any()
                 } else {
                     items.into_iter().map(|item| view! {
                         <li class="font-mono">{item}</li>

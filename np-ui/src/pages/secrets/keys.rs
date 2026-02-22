@@ -1,8 +1,9 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::JsCast;
+use leptos::wasm_bindgen::JsCast;
 
+use crate::api::check_response_status;
 use crate::components::common::Card;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -30,7 +31,7 @@ async fn fetch_keys() -> Result<Vec<AgeKeyInfo>, String> {
     let storage = window.local_storage().map_err(|_| "No storage")?.ok_or("No storage")?;
     let token = storage.get_item("np_token").map_err(|_| "No token")?;
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("GET");
 
     let request = web_sys::Request::new_with_str_and_init("/api/secrets/keys", &opts)
@@ -46,9 +47,8 @@ async fn fetch_keys() -> Result<Vec<AgeKeyInfo>, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("HTTP {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -67,7 +67,7 @@ async fn generate_key(comment: Option<String>) -> Result<KeyResponse, String> {
 
     let body = serde_json::json!({ "comment": comment });
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("POST");
     opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
 
@@ -85,9 +85,8 @@ async fn generate_key(comment: Option<String>) -> Result<KeyResponse, String> {
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("Generate failed: {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -107,7 +106,7 @@ async fn import_key(private_key: String, comment: Option<String>) -> Result<KeyR
         "comment": comment
     });
 
-    let mut opts = web_sys::RequestInit::new();
+    let opts = web_sys::RequestInit::new();
     opts.set_method("POST");
     opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
 
@@ -125,9 +124,8 @@ async fn import_key(private_key: String, comment: Option<String>) -> Result<KeyR
 
     let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a response")?;
 
-    if !resp.ok() {
-        return Err(format!("Import failed: {}", resp.status()));
-    }
+    // Handle 401 - logout and redirect
+    check_response_status(resp.status(), resp.ok())?;
 
     let json = wasm_bindgen_futures::JsFuture::from(resp.json().map_err(|_| "No JSON")?)
         .await
@@ -256,27 +254,27 @@ pub fn KeysPage() -> impl IntoView {
                 <div>
                     <A
                         href="/secrets"
-                        attr:class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex items-center"
+                        attr:class="text-sm text-muted-foreground  hover:text-foreground:text-muted-foreground flex items-center"
                     >
                         "<- Back to Secrets"
                     </A>
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">
+                    <h1 class="text-2xl font-bold text-foreground  mt-2">
                         "Age Keys"
                     </h1>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                    <p class="text-sm text-muted-foreground ">
                         "Manage age encryption keys for SOPS secrets"
                     </p>
                 </div>
                 <div class="flex items-center space-x-3">
                     <button
                         on:click=move |_| set_show_import_modal.set(true)
-                        class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-md transition-colors"
+                        class="inline-flex items-center px-4 py-2 border border-border  bg-background hover:bg-muted  text-foreground  text-sm font-medium rounded-md transition-colors"
                     >
                         "Import Key"
                     </button>
                     <button
                         on:click=move |_| set_show_generate_modal.set(true)
-                        class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
+                        class="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-md transition-colors"
                     >
                         "+ Generate Key"
                     </button>
@@ -284,7 +282,7 @@ pub fn KeysPage() -> impl IntoView {
             </div>
 
             {move || error.get().map(|e| view! {
-                <div class="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                <div class="p-3 bg-red-500/20 border border-red-500/30 text-red-700 rounded">
                     {e}
                 </div>
             })}
@@ -296,16 +294,16 @@ pub fn KeysPage() -> impl IntoView {
             })}
 
             // Info about age keys
-            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div class="bg-blue-50900/20 border border-blue-200800 rounded-lg p-4">
                 <div class="flex">
                     <div class="flex-shrink-0">
                         <span class="text-blue-400 text-lg">"i"</span>
                     </div>
                     <div class="ml-3">
-                        <h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">
+                        <h3 class="text-sm font-medium text-blue-800200">
                             "About Age Keys"
                         </h3>
-                        <div class="mt-2 text-sm text-blue-700 dark:text-blue-300">
+                        <div class="mt-2 text-sm text-blue-700300">
                             <p>
                                 "Age is a modern file encryption tool used by SOPS. Each machine that needs to decrypt secrets "
                                 "must have access to an age private key. Public keys are used to encrypt secrets."
@@ -319,7 +317,7 @@ pub fn KeysPage() -> impl IntoView {
             <Show when=move || loading.get()>
                 <Card>
                     <div class="text-center py-12">
-                        <p class="text-gray-500">"Loading keys..."</p>
+                        <p class="text-muted-foreground">"Loading keys..."</p>
                     </div>
                 </Card>
             </Show>
@@ -332,16 +330,16 @@ pub fn KeysPage() -> impl IntoView {
                         view! {
                             <Card>
                                 <div class="text-center py-12">
-                                    <div class="text-gray-400 text-5xl mb-4">"K"</div>
-                                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                                    <div class="text-muted-foreground text-5xl mb-4">"K"</div>
+                                    <h3 class="text-lg font-medium text-foreground  mb-2">
                                         "No age keys configured"
                                     </h3>
-                                    <p class="text-gray-500 dark:text-gray-400 mb-4">
+                                    <p class="text-muted-foreground  mb-4">
                                         "Generate or import an age key to start encrypting secrets."
                                     </p>
                                     <button
                                         on:click=move |_| set_show_generate_modal.set(true)
-                                        class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
+                                        class="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-md transition-colors"
                                     >
                                         "Generate Your First Key"
                                     </button>
@@ -366,25 +364,25 @@ pub fn KeysPage() -> impl IntoView {
                                             <div class="flex items-start justify-between">
                                                 <div class="space-y-2">
                                                     <div class="flex items-center space-x-2">
-                                                        <code class="text-sm font-mono text-gray-700 dark:text-gray-300">
+                                                        <code class="text-sm font-mono text-foreground ">
                                                             {truncated_key}
                                                         </code>
                                                         {is_default.then(|| view! {
-                                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-500/20 text-green-400900200">
                                                                 "Default"
                                                             </span>
                                                         })}
                                                     </div>
                                                     {key.comment.map(|c| view! {
-                                                        <p class="text-sm text-gray-500 dark:text-gray-400">{c}</p>
+                                                        <p class="text-sm text-muted-foreground ">{c}</p>
                                                     })}
-                                                    <p class="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                                                    <p class="text-xs text-muted-foreground  font-mono">
                                                         {public_key.clone()}
                                                     </p>
                                                 </div>
                                                 <div class="flex items-center space-x-2">
                                                     <button
-                                                        class="px-3 py-1 text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-600 rounded"
+                                                        class="px-3 py-1 text-sm font-medium text-primary hover:text-primary/80 border border-indigo-300 rounded"
                                                         on:click=move |_| on_copy(public_key_for_copy.clone())
                                                     >
                                                         "Copy"
@@ -404,21 +402,21 @@ pub fn KeysPage() -> impl IntoView {
             <Card title="Using Age Keys".to_string()>
                 <div class="space-y-4">
                     <div>
-                        <h4 class="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                        <h4 class="font-medium text-foreground  mb-2">
                             "Key Storage"
                         </h4>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                        <p class="text-sm text-muted-foreground ">
                             "Private keys are stored at "
-                            <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">"~/.config/sops/age/keys.txt"</code>
+                            <code class="bg-muted  px-1 rounded">"~/.config/sops/age/keys.txt"</code>
                             " (default SOPS location)."
                         </p>
                     </div>
 
                     <div>
-                        <h4 class="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                        <h4 class="font-medium text-foreground  mb-2">
                             "Deploying to NixOS"
                         </h4>
-                        <pre class="bg-gray-100 dark:bg-gray-800 rounded p-3 text-xs overflow-x-auto font-mono">
+                        <pre class="bg-muted  rounded p-3 text-xs overflow-x-auto font-mono">
 {r#"# Copy the private key to your server:
 scp ~/.config/sops/age/keys.txt root@server:/var/lib/sops-nix/key.txt
 
@@ -428,10 +426,10 @@ sops.age.keyFile = "/var/lib/sops-nix/key.txt";"#}
                     </div>
 
                     <div>
-                        <h4 class="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                        <h4 class="font-medium text-foreground  mb-2">
                             "Adding to .sops.yaml"
                         </h4>
-                        <pre class="bg-gray-100 dark:bg-gray-800 rounded p-3 text-xs overflow-x-auto font-mono">
+                        <pre class="bg-muted  rounded p-3 text-xs overflow-x-auto font-mono">
 {r#"# Add your public key to .sops.yaml:
 creation_rules:
   - path_regex: secrets/.*\.yaml$
@@ -446,21 +444,21 @@ creation_rules:
             // Generate key modal
             <Show when=move || show_generate_modal.get()>
                 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+                    <div class="bg-background rounded-lg shadow-xl w-full max-w-md p-6">
+                        <h3 class="text-lg font-medium text-foreground  mb-4">
                             "Generate New Age Key"
                         </h3>
 
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label class="block text-sm font-medium text-foreground  mb-1">
                                     "Comment (optional)"
                                 </label>
                                 <input
                                     type="text"
-                                    prop:value=move || key_comment.get()
                                     on:input=move |ev| set_key_comment.set(event_target_value(&ev))
-                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500"
+                                    prop:value=move || key_comment.get()
+                                    class="w-full px-3 py-2 border border-border  rounded-md shadow-sm bg-background text-foreground  focus:ring-ring focus:border-primary"
                                     placeholder="e.g., production-server-1"
                                 />
                             </div>
@@ -472,14 +470,14 @@ creation_rules:
                                     set_show_generate_modal.set(false);
                                     set_key_comment.set(String::new());
                                 }
-                                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                class="px-4 py-2 border border-border  rounded-md shadow-sm text-sm font-medium text-foreground  bg-background hover:bg-muted "
                             >
                                 "Cancel"
                             </button>
                             <button
                                 on:click=on_generate
                                 disabled=move || generating.get()
-                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm text-sm font-medium text-white disabled:opacity-50"
+                                class="px-4 py-2 bg-primary hover:bg-primary/90 rounded-md shadow-sm text-sm font-medium text-primary-foreground disabled:opacity-50"
                             >
                                 {move || if generating.get() { "Generating..." } else { "Generate" }}
                             </button>
@@ -491,37 +489,37 @@ creation_rules:
             // Import key modal
             <Show when=move || show_import_modal.get()>
                 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+                    <div class="bg-background rounded-lg shadow-xl w-full max-w-md p-6">
+                        <h3 class="text-lg font-medium text-foreground  mb-4">
                             "Import Age Key"
                         </h3>
 
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label class="block text-sm font-medium text-foreground  mb-1">
                                     "Private Key"
                                 </label>
                                 <textarea
-                                    prop:value=move || import_key_value.get()
                                     on:input=move |ev| set_import_key_value.set(event_target_value(&ev))
+                                    prop:value=move || import_key_value.get()
                                     rows=3
-                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
+                                    class="w-full px-3 py-2 border border-border  rounded-md shadow-sm bg-background text-foreground  focus:ring-ring focus:border-primary font-mono text-sm"
                                     placeholder="AGE-SECRET-KEY-1..."
                                 />
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                <p class="mt-1 text-xs text-muted-foreground ">
                                     "Paste your age private key (starts with AGE-SECRET-KEY-)"
                                 </p>
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label class="block text-sm font-medium text-foreground  mb-1">
                                     "Comment (optional)"
                                 </label>
                                 <input
                                     type="text"
-                                    prop:value=move || key_comment.get()
                                     on:input=move |ev| set_key_comment.set(event_target_value(&ev))
-                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500"
+                                    prop:value=move || key_comment.get()
+                                    class="w-full px-3 py-2 border border-border  rounded-md shadow-sm bg-background text-foreground  focus:ring-ring focus:border-primary"
                                     placeholder="e.g., imported from backup"
                                 />
                             </div>
@@ -534,14 +532,14 @@ creation_rules:
                                     set_import_key_value.set(String::new());
                                     set_key_comment.set(String::new());
                                 }
-                                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                class="px-4 py-2 border border-border  rounded-md shadow-sm text-sm font-medium text-foreground  bg-background hover:bg-muted "
                             >
                                 "Cancel"
                             </button>
                             <button
                                 on:click=on_import
                                 disabled=move || importing.get()
-                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm text-sm font-medium text-white disabled:opacity-50"
+                                class="px-4 py-2 bg-primary hover:bg-primary/90 rounded-md shadow-sm text-sm font-medium text-primary-foreground disabled:opacity-50"
                             >
                                 {move || if importing.get() { "Importing..." } else { "Import" }}
                             </button>

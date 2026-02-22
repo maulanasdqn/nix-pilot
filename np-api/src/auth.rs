@@ -206,7 +206,7 @@ pub async fn check_auth(State(state): State<crate::state::AppState>, req: Reques
     })
 }
 
-/// Extract token from request (header or cookie)
+/// Extract token from request (header, cookie, or query param for WebSocket)
 fn extract_token(req: &Request) -> Option<String> {
     // Try Authorization header first
     if let Some(auth_header) = req.headers().get(header::AUTHORIZATION) {
@@ -225,6 +225,15 @@ fn extract_token(req: &Request) -> Option<String> {
                 if let Some(token) = cookie.strip_prefix("np_token=") {
                     return Some(token.to_string());
                 }
+            }
+        }
+    }
+
+    // Try query parameter (for WebSocket connections)
+    if let Some(query) = req.uri().query() {
+        for param in query.split('&') {
+            if let Some(token) = param.strip_prefix("token=") {
+                return Some(token.to_string());
             }
         }
     }

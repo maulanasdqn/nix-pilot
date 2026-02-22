@@ -10,6 +10,7 @@ use np_core::{
     UpdateInputRequest,
 };
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -164,4 +165,86 @@ pub async fn update_flake_lock(
             }
         ),
     }))
+}
+
+/// Detected flake info
+#[derive(Debug, Serialize)]
+pub struct DetectedFlake {
+    pub path: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub is_registered: bool,
+}
+
+/// Response for detected flakes
+#[derive(Debug, Serialize)]
+pub struct DetectFlakesResponse {
+    pub flakes: Vec<DetectedFlake>,
+}
+
+/// Detect flakes at common locations
+pub async fn detect_flakes(
+    State(state): State<AppState>,
+) -> Result<Json<DetectFlakesResponse>, ApiError> {
+    let mut detected = Vec::new();
+
+    // Get registered flakes for comparison
+    let registered = state.flakes.list().await.unwrap_or_default();
+    let registered_paths: Vec<String> = registered.iter().map(|f| f.path.to_string_lossy().to_string()).collect();
+
+    // Common flake locations to check
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+    let locations = vec![
+        format!("{}/.config/nix", home),
+        format!("{}/nix-config", home),
+        format!("{}/nixos-config", home),
+        format!("{}/.nixpkgs", home),
+        "/etc/nixos".to_string(),
+    ];
+
+    for location in locations {
+        let path = PathBuf::from(&location);
+        let flake_nix = path.join("flake.nix");
+
+        if flake_nix.exists() {
+            // Try to get metadata
+            let description = get_flake_description(&path).await;
+            let name = path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            let is_registered = registered_paths.iter().any(|p| p == &location);
+
+            detected.push(DetectedFlake {
+                path: location,
+                name,
+                description,
+                is_registered,
+            });
+        }
+    }
+
+    Ok(Json(DetectFlakesResponse { flakes: detected }))
+}
+
+/// Helper to get flake description from flake.nix
+async fn get_flake_description(path: &PathBuf) -> Option<String> {
+    use tokio::process::Command;
+
+    let output = Command::new("nix")
+        .args(["flake", "metadata", "--json"])
+        .arg(path.to_str()?)
+        .output()
+        .await
+        .ok()?;
+
+    if output.status.success() {
+        let json: serde_json::Value = serde_json::from_slice(&output.stdout).ok()?;
+        json.get("description")
+            .and_then(|d| d.as_str())
+            .map(|s| s.to_string())
+    } else {
+        None
+    }
 }

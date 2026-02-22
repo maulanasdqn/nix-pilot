@@ -303,7 +303,7 @@ impl Default for NixosAnywhereInstaller {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ssh::{SshAuthMethod, SshCredentials, SshTarget};
+    use crate::ssh::{SshCredentials, SshTarget};
 
     #[test]
     fn test_build_args() {
@@ -313,10 +313,7 @@ mod tests {
             target: SshTarget {
                 host: "192.168.1.100".to_string(),
                 port: 22,
-                credentials: SshCredentials {
-                    username: "root".to_string(),
-                    auth_method: SshAuthMethod::Agent,
-                },
+                credentials: SshCredentials::with_agent("root"),
             },
             flake_ref: "github:user/repo#nixosConfigurations.myhost".to_string(),
             vm_test: false,

@@ -59,16 +59,16 @@ pub fn SettingsPage() -> impl IntoView {
         <div class="space-y-6">
             // Header
             <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                <h1 class="text-2xl font-bold text-foreground ">
                     "Settings"
                 </h1>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
+                <p class="text-sm text-muted-foreground ">
                     "Configure Nix Pilot preferences"
                 </p>
             </div>
 
             {move || save_msg.get().map(|msg| view! {
-                <div class="p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+                <div class="p-3 bg-green-500/20 border border-green-500/30 text-green-700 rounded">
                     {msg}
                 </div>
             })}
@@ -78,27 +78,27 @@ pub fn SettingsPage() -> impl IntoView {
                 <Card title="API Configuration".to_string()>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <label class="block text-sm font-medium text-foreground ">
                                 "API URL"
                             </label>
                             <input
                                 type="text"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
-                                prop:value=api_url
+                                class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                 on:input=move |ev| set_api_url.set(event_target_value(&ev))
+                                prop:value=move || api_url.get()
                             />
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            <p class="mt-1 text-xs text-muted-foreground ">
                                 "The URL of the Nix Pilot API server"
                             </p>
                         </div>
 
                         <div class="flex items-center justify-between">
                             <div>
-                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <span class="text-sm font-medium text-foreground ">
                                     "Connection Status"
                                 </span>
                             </div>
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400900200">
                                 <IconStatusDot size=IconSize::Sm color="text-green-500".to_string() />
                                 <span class="ml-1">"Connected"</span>
                             </span>
@@ -110,13 +110,13 @@ pub fn SettingsPage() -> impl IntoView {
                 <Card title="Appearance".to_string()>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <label class="block text-sm font-medium text-foreground ">
                                 "Theme"
                             </label>
                             <select
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
-                                prop:value=theme
+                                class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                 on:change=move |ev| set_theme.set(event_target_value(&ev))
+                                prop:value=move || theme.get()
                             >
                                 <option value="system">"System"</option>
                                 <option value="light">"Light"</option>
@@ -132,29 +132,29 @@ pub fn SettingsPage() -> impl IntoView {
                         <label class="flex items-center space-x-3">
                             <input
                                 type="checkbox"
-                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                prop:checked=auto_refresh
+                                class="rounded border-border text-primary focus:ring-ring"
                                 on:change=move |ev| set_auto_refresh.set(event_target_checked(&ev))
+                                prop:checked=move || auto_refresh.get()
                             />
                             <div>
-                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <span class="text-sm font-medium text-foreground ">
                                     "Auto-refresh data"
                                 </span>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                <p class="text-xs text-muted-foreground ">
                                     "Automatically refresh machine status and service data"
                                 </p>
                             </div>
                         </label>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <label class="block text-sm font-medium text-foreground ">
                                 "Refresh Interval (seconds)"
                             </label>
                             <input
                                 type="number"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
-                                prop:value=refresh_interval
+                                class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                 on:input=move |ev| set_refresh_interval.set(event_target_value(&ev))
+                                prop:value=move || refresh_interval.get()
                                 disabled=move || !auto_refresh.get()
                             />
                         </div>
@@ -164,12 +164,12 @@ pub fn SettingsPage() -> impl IntoView {
                 // SSH Keys Link
                 <Card title="SSH Keys".to_string()>
                     <div class="space-y-4">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                        <p class="text-sm text-muted-foreground ">
                             "Manage SSH keys for connecting to remote machines."
                         </p>
                         <A
                             href="/secrets/keys"
-                            attr:class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+                            attr:class="inline-flex items-center px-4 py-2 border border-border  rounded-md shadow-sm text-sm font-medium text-foreground  bg-card  hover:bg-muted "
                         >
                             <span class="mr-2"><IconKey size=IconSize::Sm /></span>
                             "Manage SSH Keys"
@@ -180,12 +180,12 @@ pub fn SettingsPage() -> impl IntoView {
                 // Age Keys Link
                 <Card title="Encryption Keys".to_string()>
                     <div class="space-y-4">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                        <p class="text-sm text-muted-foreground ">
                             "Manage age keys for SOPS secret encryption."
                         </p>
                         <A
                             href="/secrets/keys"
-                            attr:class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+                            attr:class="inline-flex items-center px-4 py-2 border border-border  rounded-md shadow-sm text-sm font-medium text-foreground  bg-card  hover:bg-muted "
                         >
                             <span class="mr-2"><IconShield size=IconSize::Sm /></span>
                             "Manage Age Keys"
@@ -197,15 +197,15 @@ pub fn SettingsPage() -> impl IntoView {
                 <Card title="About".to_string()>
                     <div class="space-y-3">
                         <div class="flex justify-between">
-                            <span class="text-sm text-gray-500 dark:text-gray-400">"Version"</span>
-                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">"0.1.0"</span>
+                            <span class="text-sm text-muted-foreground ">"Version"</span>
+                            <span class="text-sm font-medium text-foreground ">"0.1.0"</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-sm text-gray-500 dark:text-gray-400">"Build"</span>
-                            <span class="text-sm font-mono text-gray-900 dark:text-gray-100">"dev"</span>
+                            <span class="text-sm text-muted-foreground ">"Build"</span>
+                            <span class="text-sm font-mono text-foreground ">"dev"</span>
                         </div>
-                        <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
-                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                        <div class="pt-3 border-t border-border">
+                            <p class="text-xs text-muted-foreground ">
                                 "Nix Pilot - A web UI for managing NixOS deployments, flakes, and services."
                             </p>
                         </div>
@@ -216,7 +216,7 @@ pub fn SettingsPage() -> impl IntoView {
             // Save button
             <div class="flex justify-end">
                 <button
-                    class="px-6 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50"
+                    class="px-6 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md disabled:opacity-50"
                     on:click=on_save
                     disabled=move || saving.get()
                 >

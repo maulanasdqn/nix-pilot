@@ -6,6 +6,7 @@ mod machines;
 mod nix;
 mod secrets;
 mod services;
+mod system;
 mod websocket;
 
 pub use deploy::*;
@@ -16,4 +17,5 @@ pub use machines::*;
 pub use nix::*;
 pub use secrets::*;
 pub use services::*;
+pub use system::*;
 pub use websocket::*;

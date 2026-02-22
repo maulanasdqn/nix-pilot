@@ -98,12 +98,12 @@ pub fn InstallWizardPage() -> impl IntoView {
     view! {
         <div class="space-y-6">
             <div class="flex items-center justify-between">
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                <h1 class="text-2xl font-bold text-foreground ">
                     "Install NixOS"
                 </h1>
                 <A
                     href="/"
-                    attr:class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    attr:class="text-muted-foreground hover:text-foreground  "
                 >
                     "Cancel"
                 </A>
@@ -164,9 +164,9 @@ pub fn InstallWizardPage() -> impl IntoView {
                 </div>
 
                 // Navigation buttons
-                <div class="flex justify-between mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <div class="flex justify-between mt-6 pt-6 border-t border-border">
                     <button
-                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50"
+                        class="px-4 py-2 text-sm font-medium text-foreground  hover:bg-muted  rounded-md disabled:opacity-50"
                         disabled=move || step.get() == WizardStep::SelectTarget || step.get() == WizardStep::Installing
                         on:click=prev_step
                     >
@@ -174,7 +174,7 @@ pub fn InstallWizardPage() -> impl IntoView {
                     </button>
 
                     <button
-                        class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50"
+                        class="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md disabled:opacity-50"
                         disabled=move || !can_proceed() || step.get() == WizardStep::Installing
                         on:click=next_step
                     >
@@ -209,7 +209,7 @@ fn WizardStepIndicator(current_step: ReadSignal<WizardStep>) -> impl IntoView {
                             Some(view! {
                                 <div class=move || format!(
                                     "w-12 h-1 mx-2 {}",
-                                    if is_completed() { "bg-indigo-600" } else { "bg-gray-300 dark:bg-gray-600" }
+                                    if is_completed() { "bg-primary" } else { "bg-muted " }
                                 )/>
                             })
                         } else {
@@ -220,16 +220,16 @@ fn WizardStepIndicator(current_step: ReadSignal<WizardStep>) -> impl IntoView {
                             <div class=move || format!(
                                 "w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium {}",
                                 if is_current() {
-                                    "bg-indigo-600 text-white"
+                                    "bg-primary text-primary-foreground"
                                 } else if is_completed() {
-                                    "bg-indigo-600 text-white"
+                                    "bg-primary text-primary-foreground"
                                 } else {
-                                    "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
+                                    "bg-muted  text-foreground "
                                 }
                             )>
                                 {step.number()}
                             </div>
-                            <span class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            <span class="mt-2 text-xs text-muted-foreground ">
                                 {step.name()}
                             </span>
                         </div>
@@ -255,60 +255,60 @@ fn SelectTargetStep(
     view! {
         <div class="space-y-6">
             <div>
-                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                <h2 class="text-lg font-medium text-foreground  mb-2">
                     "Target Machine"
                 </h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
+                <p class="text-sm text-muted-foreground ">
                     "Enter the SSH connection details for the machine where you want to install NixOS."
                 </p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label class="block text-sm font-medium text-foreground ">
                         "Host"
                     </label>
                     <input
                         type="text"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
+                        class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                         placeholder="192.168.1.100 or hostname.example.com"
-                        prop:value=host
                         on:input=move |ev| set_host.set(event_target_value(&ev))
+                        prop:value=move || host.get()
                     />
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label class="block text-sm font-medium text-foreground ">
                         "Port"
                     </label>
                     <input
                         type="number"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
-                        prop:value=port
+                        class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                         on:input=move |ev| set_port.set(event_target_value(&ev))
+                        prop:value=move || port.get()
                     />
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label class="block text-sm font-medium text-foreground ">
                         "Username"
                     </label>
                     <input
                         type="text"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
-                        prop:value=user
+                        class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                         on:input=move |ev| set_user.set(event_target_value(&ev))
+                        prop:value=move || user.get()
                     />
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label class="block text-sm font-medium text-foreground ">
                         "Authentication"
                     </label>
                     <select
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
-                        prop:value=auth_method
+                        class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                         on:change=move |ev| set_auth_method.set(event_target_value(&ev))
+                        prop:value=move || auth_method.get()
                     >
                         <option value="agent">"SSH Agent"</option>
                         <option value="key">"SSH Key File"</option>
@@ -316,11 +316,11 @@ fn SelectTargetStep(
                 </div>
             </div>
 
-            <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-4">
-                <h4 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+            <div class="bg-yellow-50900/20 border border-yellow-200800 rounded-md p-4">
+                <h4 class="text-sm font-medium text-yellow-800200">
                     "Requirements"
                 </h4>
-                <ul class="mt-2 text-sm text-yellow-700 dark:text-yellow-300 list-disc list-inside space-y-1">
+                <ul class="mt-2 text-sm text-yellow-700300 list-disc list-inside space-y-1">
                     <li>"Target machine must be accessible via SSH"</li>
                     <li>"Root access required (or sudo without password)"</li>
                     <li>"Target should be booted into a Linux live environment (e.g., NixOS installer, SystemRescue)"</li>
@@ -341,54 +341,54 @@ fn SelectFlakeStep(
     view! {
         <div class="space-y-6">
             <div>
-                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                <h2 class="text-lg font-medium text-foreground  mb-2">
                     "NixOS Configuration"
                 </h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
+                <p class="text-sm text-muted-foreground ">
                     "Select the flake containing your NixOS configuration."
                 </p>
             </div>
 
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label class="block text-sm font-medium text-foreground ">
                         "Flake Reference"
                     </label>
                     <input
                         type="text"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm font-mono"
+                        class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono"
                         placeholder="github:user/repo or /path/to/flake"
-                        prop:value=flake_ref
                         on:input=move |ev| set_flake_ref.set(event_target_value(&ev))
+                        prop:value=move || flake_ref.get()
                     />
-                    <p class="mt-1 text-sm text-gray-500">
+                    <p class="mt-1 text-sm text-muted-foreground">
                         "Can be a GitHub reference, local path, or any valid flake URL"
                     </p>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label class="block text-sm font-medium text-foreground ">
                         "Configuration Name"
                     </label>
                     <input
                         type="text"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm font-mono"
+                        class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono"
                         placeholder="myhost"
-                        prop:value=configuration
                         on:input=move |ev| set_configuration.set(event_target_value(&ev))
+                        prop:value=move || configuration.get()
                     />
-                    <p class="mt-1 text-sm text-gray-500">
+                    <p class="mt-1 text-sm text-muted-foreground">
                         "The name in nixosConfigurations (e.g., \"myhost\" for nixosConfigurations.myhost)"
                     </p>
                 </div>
             </div>
 
             // Preview
-            <div class="bg-gray-50 dark:bg-gray-800 rounded-md p-4">
-                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div class="bg-muted  rounded-md p-4">
+                <h4 class="text-sm font-medium text-foreground  mb-2">
                     "Full Flake Reference"
                 </h4>
-                <p class="font-mono text-sm text-gray-600 dark:text-gray-400">
+                <p class="font-mono text-sm text-muted-foreground ">
                     {move || {
                         let f = flake_ref.get();
                         let c = configuration.get();
@@ -415,10 +415,10 @@ fn ConfigureOptionsStep(
     view! {
         <div class="space-y-6">
             <div>
-                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                <h2 class="text-lg font-medium text-foreground  mb-2">
                     "Installation Options"
                 </h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
+                <p class="text-sm text-muted-foreground ">
                     "Configure how the installation should proceed."
                 </p>
             </div>
@@ -427,15 +427,15 @@ fn ConfigureOptionsStep(
                 <label class="flex items-start space-x-3">
                     <input
                         type="checkbox"
-                        class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                        prop:checked=use_kexec
+                        class="mt-1 rounded border-border text-primary focus:ring-ring"
                         on:change=move |ev| set_use_kexec.set(event_target_checked(&ev))
+                        prop:checked=move || use_kexec.get()
                     />
                     <div>
-                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <span class="text-sm font-medium text-foreground ">
                             "Use kexec"
                         </span>
-                        <p class="text-sm text-gray-500">
+                        <p class="text-sm text-muted-foreground">
                             "Boot into the NixOS installer using kexec (faster, recommended)"
                         </p>
                     </div>
@@ -444,26 +444,26 @@ fn ConfigureOptionsStep(
                 <label class="flex items-start space-x-3">
                     <input
                         type="checkbox"
-                        class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                        prop:checked=wipe_disks
+                        class="mt-1 rounded border-border text-primary focus:ring-ring"
                         on:change=move |ev| set_wipe_disks.set(event_target_checked(&ev))
+                        prop:checked=move || wipe_disks.get()
                     />
                     <div>
-                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <span class="text-sm font-medium text-foreground ">
                             "Wipe disks"
                         </span>
-                        <p class="text-sm text-gray-500">
+                        <p class="text-sm text-muted-foreground">
                             "Completely wipe target disks before installation (DESTRUCTIVE)"
                         </p>
                     </div>
                 </label>
             </div>
 
-            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
-                <h4 class="text-sm font-medium text-red-800 dark:text-red-200">
+            <div class="bg-red-50900/20 border border-red-200800 rounded-md p-4">
+                <h4 class="text-sm font-medium text-red-800200">
                     "Warning"
                 </h4>
-                <p class="mt-2 text-sm text-red-700 dark:text-red-300">
+                <p class="mt-2 text-sm text-red-700300">
                     "This installation will format disks according to your disko configuration. All existing data on target disks will be permanently lost. Make sure you have backups of any important data."
                 </p>
             </div>
@@ -485,46 +485,46 @@ fn ReviewStep(
     view! {
         <div class="space-y-6">
             <div>
-                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                <h2 class="text-lg font-medium text-foreground  mb-2">
                     "Review Installation"
                 </h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
+                <p class="text-sm text-muted-foreground ">
                     "Please review the installation settings before proceeding."
                 </p>
             </div>
 
-            <dl class="divide-y divide-gray-200 dark:divide-gray-700">
+            <dl class="divide-y divide-border">
                 <div class="py-3 flex justify-between">
-                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Target"</dt>
-                    <dd class="text-sm text-gray-900 dark:text-gray-100 font-mono">
+                    <dt class="text-sm font-medium text-muted-foreground ">"Target"</dt>
+                    <dd class="text-sm text-foreground  font-mono">
                         {move || format!("{}@{}:{}", user.get(), host.get(), port.get())}
                     </dd>
                 </div>
                 <div class="py-3 flex justify-between">
-                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Configuration"</dt>
-                    <dd class="text-sm text-gray-900 dark:text-gray-100 font-mono">
+                    <dt class="text-sm font-medium text-muted-foreground ">"Configuration"</dt>
+                    <dd class="text-sm text-foreground  font-mono">
                         {move || format!("{}#nixosConfigurations.{}", flake_ref.get(), configuration.get())}
                     </dd>
                 </div>
                 <div class="py-3 flex justify-between">
-                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Use kexec"</dt>
-                    <dd class="text-sm text-gray-900 dark:text-gray-100">
+                    <dt class="text-sm font-medium text-muted-foreground ">"Use kexec"</dt>
+                    <dd class="text-sm text-foreground ">
                         {move || if use_kexec.get() { "Yes" } else { "No" }}
                     </dd>
                 </div>
                 <div class="py-3 flex justify-between">
-                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">"Wipe disks"</dt>
-                    <dd class="text-sm text-gray-900 dark:text-gray-100">
+                    <dt class="text-sm font-medium text-muted-foreground ">"Wipe disks"</dt>
+                    <dd class="text-sm text-foreground ">
                         {move || if wipe_disks.get() { "Yes" } else { "No" }}
                     </dd>
                 </div>
             </dl>
 
-            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-4">
-                <h4 class="text-sm font-medium text-blue-800 dark:text-blue-200">
+            <div class="bg-blue-50900/20 border border-blue-200800 rounded-md p-4">
+                <h4 class="text-sm font-medium text-blue-800200">
                     "What will happen"
                 </h4>
-                <ol class="mt-2 text-sm text-blue-700 dark:text-blue-300 list-decimal list-inside space-y-1">
+                <ol class="mt-2 text-sm text-blue-700300 list-decimal list-inside space-y-1">
                     <li>"Connect to target via SSH"</li>
                     {move || use_kexec.get().then(|| view! {
                         <li>"Boot into NixOS installer using kexec"</li>
@@ -544,33 +544,33 @@ fn InstallingStep(job_id: ReadSignal<Option<String>>) -> impl IntoView {
     view! {
         <div class="space-y-6">
             <div class="text-center">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900 mb-4">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"/>
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10  mb-4">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"/>
                 </div>
-                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                <h2 class="text-lg font-medium text-foreground ">
                     "Installing NixOS..."
                 </h2>
-                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                <p class="mt-2 text-sm text-muted-foreground ">
                     "This may take several minutes. Please don't close this page."
                 </p>
             </div>
 
             // Progress bar
-            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                <div class="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" style="width: 25%"/>
+            <div class="w-full bg-muted  rounded-full h-2.5">
+                <div class="bg-primary h-2.5 rounded-full transition-all duration-500" style="width: 25%"/>
             </div>
 
             // Terminal output
-            <div class="bg-gray-900 rounded-lg p-4 font-mono text-sm text-green-400 h-64 overflow-auto">
+            <div class="bg-background rounded-lg p-4 font-mono text-sm text-green-400 h-64 overflow-auto">
                 <p>"$ nixos-anywhere --flake .#nixosConfigurations.myhost root@192.168.1.100"</p>
-                <p class="text-gray-400">"Connecting to target..."</p>
+                <p class="text-muted-foreground">"Connecting to target..."</p>
                 <p class="animate-pulse">"_"</p>
             </div>
 
             // Status
-            <div class="flex items-center justify-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+            <div class="flex items-center justify-center space-x-2 text-sm text-muted-foreground ">
                 <span>"Current phase: "</span>
-                <span class="font-medium text-gray-700 dark:text-gray-300">"Connecting"</span>
+                <span class="font-medium text-foreground ">"Connecting"</span>
             </div>
         </div>
     }
