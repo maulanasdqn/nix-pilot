@@ -3,6 +3,8 @@
 //! This crate provides the Leptos-based web interface for managing
 //! NixOS deployments, flakes, and services.
 
+#![recursion_limit = "512"]
+
 pub mod api;
 pub mod app;
 pub mod components;
